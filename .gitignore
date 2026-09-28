@@ -1,0 +1,65 @@
+# Generated build output
+build/*
+!build/.gitkeep
+
+# Vivado project, synthesis and implementation output
+*.xpr
+*.xsa
+*.jou
+*.log
+*.str
+*.dcp
+*.bit
+*.bin
+*.ltx
+*.rpt
+*.wdb
+*.wcfg
+vivado*.backup.jou
+vivado*.backup.log
+vivado_pid*.str
+.Xil/
+*.cache/
+*.gen/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.srcs/
+
+# Simulator output
+*.vcd
+*.fst
+*.lxt
+*.lxt2
+*.wlf
+*.vvp
+*.out
+iverilog/
+verilator/
+obj_dir/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Editor and OS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
