@@ -1,0 +1,66 @@
+# Complete Windows Vivado implementation flow. Run from PowerShell:
+#   vivado -mode batch -source scripts/build_bitstream.tcl
+set script_dir [file dirname [file normalize [info script]]]
+set root [file normalize [file join $script_dir ..]]
+set build_dir [file join $root build vivado]
+set project_file [file join $build_dir rv32_digital_analyzer.xpr]
+set report_dir [file join $build_dir reports]
+set bitstream_file [file join $build_dir nexys_a7_mvp.bit]
+
+if {![file exists $project_file]} {
+    error "Vivado project not found: run scripts/create_vivado_project.tcl first"
+}
+
+file mkdir $report_dir
+open_project $project_file
+
+# Keep the direct flow in the repository root so imem's generated firmware path
+# resolves identically in simulation and synthesis.
+cd $root
+synth_design -top nexys_a7_top -part xc7a100tcsg324-1
+write_checkpoint -force [file join $build_dir nexys_a7_mvp_synth.dcp]
+opt_design
+place_design
+phys_opt_design
+route_design -directive Explore
+write_checkpoint -force [file join $build_dir nexys_a7_mvp_routed.dcp]
+
+report_utilization -hierarchical -file [file join $report_dir utilization_routed.rpt] -force
+report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose \
+    -max_paths 20 -file [file join $report_dir timing_summary_routed.rpt]
+report_clock_utilization -file [file join $report_dir clock_utilization_routed.rpt]
+check_timing -verbose -file [file join $report_dir check_timing_routed.rpt]
+report_drc -name final_drc -file [file join $report_dir drc_routed.rpt]
+report_methodology -file [file join $report_dir methodology_routed.rpt]
+
+set setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
+set hold_path [get_timing_paths -quiet -delay_type min -max_paths 1]
+if {[llength $setup_path] == 0 || [llength $hold_path] == 0} {
+    error "Timing analysis did not return both setup and hold paths"
+}
+
+set setup_wns [get_property SLACK $setup_path]
+set hold_wns [get_property SLACK $hold_path]
+puts "TIMING: setup WNS=$setup_wns ns, hold WNS=$hold_wns ns"
+# The old build-only smoke check stopped after elaboration/synthesis and could
+# produce a false green. Refuse bitstream generation when routed timing fails.
+if {$setup_wns < 0.0 || $hold_wns < 0.0} {
+    error "Timing failed: setup WNS=$setup_wns ns, hold WNS=$hold_wns ns"
+}
+
+set blocking_drc {}
+foreach violation [get_drc_violations -quiet] {
+    set severity [get_property SEVERITY $violation]
+    if {$severity eq "Error" || $severity eq "Critical Warning"} {
+        lappend blocking_drc "[get_property ID $violation] ($severity)"
+    }
+}
+if {[llength $blocking_drc] != 0} {
+    error "Blocking DRC violations: $blocking_drc"
+}
+
+# Reaching bitgen now proves routing, setup/hold timing, and blocking DRCs all
+# passed; it does not claim that warning-level findings or hardware tests passed.
+write_bitstream -force $bitstream_file
+puts "BITSTREAM PASS: $bitstream_file"
+close_project

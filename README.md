@@ -7,10 +7,13 @@ performance counters.
 
 ## Current scope
 
-The basic code skeleton is implemented. Simulation, synthesis, bitstream
-generation and physical-board validation are intentionally deferred by the
-current work request. `constraints/nexys_a7_100t.xdc` is therefore a template;
-official Digilent package pins must be filled in before hardware use.
+The Windows development flow uses Python and Vivado 2024.2/XSim. The assembler
+regression tests, MMIO address-map simulation, closed-loop PWM-to-Capture SoC
+simulation, Vivado synthesis, implementation, timing, DRC, and bitstream
+generation have been exercised. The active top-level
+ports use the official Digilent Nexys A7-100T package-pin mapping in
+`constraints/nexys_a7_100t.xdc`. Physical-board validation has not yet been
+completed.
 
 ## Layout
 
@@ -26,14 +29,35 @@ official Digilent package pins must be filled in before hardware use.
 
 ## Commands
 
-`make asm` assembles the example firmware. `make lint` performs an Icarus
-elaboration check. `make test` currently runs only these build-time checks;
-it does not claim simulation or hardware success. `make vivado` creates a
-Vivado project under `build/vivado` once Vivado is installed.
+Run the complete Windows verification flow from PowerShell:
+
+```powershell
+.\scripts\test_windows.ps1
+```
+
+The script assembles all firmware images, runs the Python assembler tests, and
+runs both XSim testbenches. To create the Vivado project, run:
+
+```powershell
+vivado -mode batch -source scripts/create_vivado_project.tcl
+```
+
+Run a synthesis check without implementation or programming the board:
+
+```powershell
+vivado -mode batch -source scripts/check_synthesis.tcl
+```
+
+Run implementation, timing and DRC checks, and generate the bitstream:
+
+```powershell
+vivado -mode batch -source scripts/build_bitstream.tcl
+```
 
 ## MMIO
 
 The implemented bases are GPIO `0x40000000`, UART `0x40001000`, timer
-`0x40002000`, PWM `0x40003000`, capture control `0x40004000`, capture window
-`0x40005000`, and performance counters `0x40006000`. Data RAM is
+`0x40002000`, PWM `0x40003000`, capture control `0x40004000`, performance
+counters `0x40006000`, and the 16 KiB capture window
+`0x40010000-0x40013fff`. Data RAM is
 `0x10000000-0x10000fff`; instruction memory starts at `0x00000000`.

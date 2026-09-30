@@ -897,13 +897,13 @@ DONE
 Base:
 
 ```text
-0x4000_5000
+0x4001_0000
 ```
 
 每一个 sample 映射成一个 32-bit word：
 
 ```text
-addr = 0x40005000 + index * 4
+addr = 0x40010000 + index * 4
 read_data[7:0] = sample
 read_data[31:8] = 0
 ```
@@ -1069,7 +1069,8 @@ create_clock -period 10.000
 ├── CODEX_MVP.md
 ├── README.md
 ├── STATUS.md
-├── Makefile
+├── scripts/
+│   └── test_windows.ps1
 │
 ├── rtl/
 │   ├── top/
@@ -1814,27 +1815,20 @@ instret > 0
 
 ---
 
-# 27. Makefile
+# 27. Windows PowerShell 验证入口
 
-必须提供至少：
+项目平台固定为 Windows，统一通过 PowerShell 和 Windows 版 Vivado/XSim
+执行，不要求兼容 WSL、Linux、GNU Make 或 Icarus Verilog。
 
-```bash
-make help
-make asm
-make unit
-make cpu-test
-make diff
-make soc-sim
-make test
-make synth
-make bit
-make program
-make clean
+必须提供一条可重复执行的完整验证命令：
+
+```powershell
+.\scripts\test_windows.ps1
 ```
 
 定义：
 
-## `make test`
+## `scripts/test_windows.ps1`
 
 必须依次运行：
 
@@ -1850,7 +1844,7 @@ SoC MVP integration simulation
 
 全部通过才 exit 0。
 
-## `make bit`
+## Bitstream 构建
 
 调用 Vivado batch：
 
@@ -2039,17 +2033,17 @@ Codex 必须严格按依赖顺序。
 - 目录
 - README skeleton
 - STATUS.md
-- Makefile
-- simulator/tool detection
+- Windows PowerShell 验证脚本
+- Windows Vivado/XSim tool detection
 - basic lint conventions
 
 验收：
 
-```text
-make help
+```powershell
+.\scripts\test_windows.ps1
 ```
 
-工作。
+可以启动完整验证流程。
 
 ---
 
@@ -2346,7 +2340,7 @@ Codex 每次提交前检查：
 - [ ] capture trigger 不重复重启
 - [ ] reset 后 capture/PWM 默认 idle
 - [ ] CRC known vector PASS
-- [ ] `make test` 全 PASS
+- [ ] `scripts/test_windows.ps1` 全 PASS
 - [ ] timing met 后才称 FPGA build 成功
 
 ---
@@ -2393,7 +2387,7 @@ Codex 每次提交前检查：
 
 ## FPGA
 
-- [ ] Nexys A7 official XDC
+- [x] Nexys A7 official XDC
 - [ ] Vivado synth PASS
 - [ ] implementation PASS
 - [ ] timing met

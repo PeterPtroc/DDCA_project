@@ -1,33 +1,45 @@
 # STATUS
 
 ## Environment
-- Python: available (`python3`)
-- Icarus Verilog: available
-- Verilator: available
-- Vivado: not detected
-- Board/XDC: official package pin mapping not supplied; template only
+- Platform: Windows PowerShell
+- Python: available
+- Vivado/XSim: 2024.2, available
+- Board: Digilent Nexys A7-100T detected through JTAG as `xc7a100t`
+- XDC: official Digilent Nexys A7-100T pin mapping applied to all 56 top-level
+  I/O bits
 
 ## Milestones
-- [x] M0 directory, Makefile, documentation and tool skeleton
+- [x] M0 directory, Windows test entry point and documentation
 - [x] M1 basic CPU combinational modules
 - [x] M2 five-stage pipeline, memories and retire interface (basic RTL)
 - [x] M3 forwarding, load-use stall and control flush (basic RTL)
 - [ ] M4 reference model and differential verification
 - [x] M5 MMIO and peripheral RTL (basic RTL)
-- [ ] M6 SoC integration simulation
-- [ ] M7 Vivado build
+- [x] M6 minimal SoC integration simulation
+- [x] M7 implementation, timing and bitstream
 - [ ] M8 physical validation
 
 ## Latest checks
-- Static Icarus elaboration was run while wiring the MMIO decoder.
-- Source tree was reorganized into Vivado-style `src/rtl`, `src/sim`, `sw`,
-  `constraints`, `scripts` and `build` directories.
-- Full simulation, synthesis and board validation have not been run per request.
+- Assembler unit tests: 3/3 PASS.
+- MMIO map XSim: PASS for Capture DATA `0x40010000-0x40013fff`, depth 4096,
+  PWM readback, UART STATUS, and independent PERF decoding.
+- Closed-loop SoC XSim: `MVP PASS`, 9293 cycles, Capture count 32.
+- Vivado synthesis for `xc7a100tcsg324-1`: PASS with 0 errors and 0 critical
+  warnings; all top-level ports have a package pin and explicit I/O standard.
+- Vivado `report_io`: `clk100=E3`, `reset_n=C12`, `uart_tx=D4`,
+  `pmod_ja[0]=C17`, and `pmod_jb[0]=D14` verified.
+- Vivado implementation: PASS at 100 MHz; setup WNS `+0.108 ns`, hold WNS
+  `+0.107 ns`, pulse-width slack `+3.750 ns`, and 0 failing endpoints.
+- Final DRC: 0 errors, 0 critical warnings, and 2 warning-level D5/D6 LUT-pair
+  placement findings (`PDRC-138`, `PDRC-146`); bitgen completed successfully.
+  There are no unclocked or unconstrained internal endpoints.
+- Bitstream: `build/vivado/nexys_a7_mvp.bit` (3,825,897 bytes).
 
-## Blockers
-- Official Nexys A7-100T master XDC/package pins are required for hardware build.
-- Firmware analyzer application and reference/differential test infrastructure remain to be completed.
+## Remaining blockers
+- Reference-model and differential CPU tests are not implemented.
+- Physical PWM-to-Capture loopback and UART validation are not run yet. The
+  JA1-to-JB1 cable is connected and matches `pmod_ja[0]` to `pmod_jb[0]`.
 
 ## Next
-Run the planned unit tests, then harden the CPU/MMIO integration and complete
-the reference model and full MVP firmware.
+Program `build/vivado/nexys_a7_mvp.bit`, then perform the physical JA1-to-JB1
+loopback and UART checks on the board.
