@@ -2,7 +2,7 @@ set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 cd $root
 
-open_project [file join $root build vivado rv32_digital_analyzer.xpr]
+open_project [file join $root build vivado rv32_realtime_scope.xpr]
 synth_design -top nexys_a7_top -part xc7a100tcsg324-1
 
 set unconstrained_pins {}

@@ -16,6 +16,7 @@ build/*
 *.wdb
 *.wcfg
 *.pb
+clockInfo.txt
 xsim.dir/
 vivado*.backup.jou
 vivado*.backup.log

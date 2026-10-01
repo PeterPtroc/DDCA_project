@@ -17,7 +17,7 @@ module tb_mmio_map;
 
   always #5 clk = ~clk;
 
-  mmio_decoder dut (
+  mmio_decoder #(.ENABLE_LEGACY_PATTERN(1)) dut (
       .clk(clk),
       .rst(rst),
       .valid(valid),

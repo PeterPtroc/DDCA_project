@@ -1,6 +1,12 @@
 `default_nettype none
 module soc_top #(
-    parameter IMEM_HEX = "build/hex/analyzer.hex"
+    parameter IMEM_HEX = "build/hex/scope.hex",
+    parameter BUTTON_DEBOUNCE_BITS = 18,
+    parameter UART_DIVIDER = 868,
+    parameter EDGE_MIN_TIMEOUT_TICKS = 10000000,
+    parameter EDGE_INITIAL_TIMEOUT_TICKS = 100000000,
+    parameter LIVE_AUTO_TIMEOUT_SAMPLES = 1024,
+    parameter ENABLE_LEGACY_PATTERN = 0
 ) (
     input wire clk,
     input wire rst,
@@ -18,6 +24,12 @@ module soc_top #(
     output wire [7:0] seg_an,
     output wire [6:0] seg,
     output wire seg_dp,
+    output wire rgb0_r,
+    output wire rgb0_g,
+    output wire rgb0_b,
+    output wire rgb1_r,
+    output wire rgb1_g,
+    output wire rgb1_b,
     output wire [3:0] vga_r,
     output wire [3:0] vga_g,
     output wire [3:0] vga_b,
@@ -52,7 +64,14 @@ module soc_top #(
       .clk(clk), .rst(rst), .we(dv && dwe), .addr(da), .wdata(dw),
       .rdata(dmem_rdata)
   );
-  mmio_decoder bus (
+  mmio_decoder #(
+      .BUTTON_DEBOUNCE_BITS(BUTTON_DEBOUNCE_BITS),
+      .UART_DIVIDER(UART_DIVIDER),
+      .EDGE_MIN_TIMEOUT_TICKS(EDGE_MIN_TIMEOUT_TICKS),
+      .EDGE_INITIAL_TIMEOUT_TICKS(EDGE_INITIAL_TIMEOUT_TICKS),
+      .LIVE_AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES),
+      .ENABLE_LEGACY_PATTERN(ENABLE_LEGACY_PATTERN)
+  ) bus (
       .clk(clk), .rst(rst), .valid(dv), .we(dwe), .addr(da), .wdata(dw),
       .sw(sw), .btn(btn), .capture_in(capture_in), .uart_rx_i(uart_rx),
       .display_index(display_index), .retire(rv), .stall(es), .fwd_ex(ef),
@@ -62,13 +81,17 @@ module soc_top #(
       .pattern_enabled(pattern_enabled), .capture_sample(cs),
       .display_sample(display_sample), .capture_armed(ca),
       .capture_triggered(ct), .capture_done(capture_done), .seg_an(seg_an),
-      .seg(seg), .seg_dp(seg_dp)
+      .seg(seg), .seg_dp(seg_dp), .rgb0_r(rgb0_r), .rgb0_g(rgb0_g),
+      .rgb0_b(rgb0_b), .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
-  vga_waveform waveform (
-      .clk(clk), .rst(rst), .sample(display_sample),
-      .sample_index(display_index), .vga_r(vga_r), .vga_g(vga_g),
-      .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs)
-  );
+  // VGA is intentionally absent from the v2 default data path.  These legacy
+  // ports remain tied low so old simulation harnesses keep compiling.
+  assign display_index = 12'd0;
+  assign vga_r = 4'd0;
+  assign vga_g = 4'd0;
+  assign vga_b = 4'd0;
+  assign vga_hs = 1'b0;
+  assign vga_vs = 1'b0;
   assign dr = (da[31:28] == 4'h4) ? mmio_r : dmem_rdata;
 endmodule
 `default_nettype wire

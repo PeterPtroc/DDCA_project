@@ -1,113 +1,117 @@
-# RV32 Digital Analyzer v1.0 on Nexys A7-100T
+# RV32 Real-Time Digital Scope v2.0
 
-This repository implements a stand-alone eight-channel digital analyzer around a
-five-stage RV32I CPU. The FPGA can generate test patterns on JA, capture signals on JB
-with adjustable rate and pre-trigger history, calculate frequency and duty cycle, and
-present results through LEDs, buttons, the eight-digit display, UART, VCD, and a
-direct-from-capture VGA waveform viewer.
+基于自研五级流水 RV32I 处理器的单通道实时数字示波分析仪，面向 3.3 V 数字方波、PWM、时钟和 GPIO。实时波形与边沿测量由专用 RTL 完成，CPU 负责配置、板载 UI、UART、深度采集管理和使用自定义 `CRC16.B` 指令保护采集包。
 
-The original v0.1 hardware baseline is preserved by the annotated tag
-`v0.1-hardware-pass`.
-
-## Features
-
-- Five-stage RV32I CPU with forwarding, load-use stall, branch flush, and custom
-  `CRC16.B`; retire-trace differential verification is retained.
-- 4096 x 8 capture RAM with rising/falling trigger, programmable sample divider,
-  configurable pre-trigger ring buffer, and chronological read window.
-- 100 MHz edge timestamp meter and iterative frequency divider.
-- Eight-channel JA generator: PWM, divided clock, toggle, and constant outputs.
-- Debounced buttons, synchronized switches, analyzer-status LEDs, and a hardware-scanned
-  eight-digit seven-segment display.
-- UART RX/TX command protocol at 115200 8N1, Python CLI, CSV dump, and
-  GTKWave-compatible VCD export.
-- 640 x 480 VGA timing with eight live capture traces and a trigger marker; capture RAM
-  is read directly, without a framebuffer.
-
-## Verification
-
-Run all unit, differential, peripheral, capture, legacy-MVP, and analyzer-SoC
-simulations from PowerShell:
-
-```powershell
-.\scripts\test_windows.ps1
+```text
+       JA1 TEST OUT
+            |
+            | optional jumper
+            v
+           JB1
+            |
+      2FF Synchronizer
+            |
+    +-------+-------+
+    |               |
+ Edge Meter      Live Scope ----> LED[15:0]
+    |               |
+    +------ RV32 CPU +----> Seven Segment
+            |
+          UART PC
 ```
 
-Create the Vivado project once, then run routed timing/DRC and bitstream generation:
+## 五分钟上手
 
-```powershell
-vivado -mode batch -source scripts/create_vivado_project.tcl
-vivado -mode batch -source scripts/build_bitstream.tcl
-```
+1. Nexys A7-100T 断电时用一根杜邦线连接 `JA1 -> JB1`。
+2. 将 `SW3=1`、`SW[7:4]=9`、`SW[11:8]=4`，即内置 100 kHz、30% 占空比信号；其余开关先置 0。
+3. 在仓库根目录生成固件、验证并实现：
 
-Program an attached Nexys A7-100T and run the automated physical JA1-to-JB1 loopback
-test:
+   ```powershell
+   .\scripts\test_windows.ps1
+   vivado -mode batch -source scripts/create_vivado_project.tcl
+   vivado -mode batch -source scripts/build_bitstream.tcl
+   vivado -mode batch -source scripts/program_analyzer.tcl
+   ```
 
-```powershell
-vivado -mode batch -source scripts/program_analyzer.tcl
-.\scripts\test_hardware.ps1 -Port COM9
-```
+4. `LED[15:0]` 显示从 LED0（最早）到 LED15（最新）的 16 点实时波形；数码管默认显示频率，LEFT/RIGHT 切换测量页，UP/DOWN 改变时基，CENTER 切换 RUN/HOLD。
+5. 自动检查串口与真实 `JA1 -> JB1` 回路：
 
-The signed-off output is `build/vivado/nexys_a7_analyzer_v1.bit`. The latest 100 MHz
-route has setup WNS `+0.061 ns`, hold WNS `+0.035 ns`, zero failing endpoints, and no
-error/critical-warning DRC violations.
+   ```powershell
+   .\scripts\test_hardware.ps1 -Port COM9
+   ```
 
-## Stand-alone controls
+   打开 SW14 后可执行正式自检门禁；脚本还会把真实 CAP2、CSV 和 VCD
+   保存到 `build/hardware/`：
 
-- CENTER: arm a new capture.
-- LEFT/RIGHT: select frequency, duty, period, high time, capture count, or CPU stall
-  page.
-- UP/DOWN: increase/decrease the sampling rate.
-- LEDs 0-7: synchronized analyzer input; 8-10: armed/triggered/done; 11: UART activity;
-  12: generator enabled; 13: analyzer mode; 14/15: PASS/ERROR.
+   ```powershell
+   .\scripts\test_hardware.ps1 -Port COM9 -RequireSelfTest
+   ```
 
-The default firmware enables a 256-tick, 77-tick-high CH0 test pattern. With a
-JA1-to-JB1 cable this is 390625 Hz at 30.078% duty and exercises the complete physical
-generator/capture path.
+最终 bitstream 为 `build/vivado/rv32_realtime_scope.bit`，默认固件为 `build/hex/scope.hex`。
 
-## PC control and VCD export
+> **电气安全：** JB1 只能接 3.3 V LVCMOS 兼容数字信号。不得接 5 V、12 V、RS-232、电源轨、模拟高压或未知电平。本项目没有商业示波器的输入保护和模拟前端。
 
-`tools/analyzer_cli.py` accepts `status`, `arm`, `rate`, `channel`, `edge`, `measure`,
-and `dump`. It requires `pyserial`:
+## 仪器功能
+
+- 共享同一个 2FF 同步器的 JB1 单通道输入。
+- 16 点低延迟 LED 波形；AUTO、NORMAL、SINGLE、FREE、RUN/HOLD；上升沿/下降沿触发，触发点固定在 LED7 附近。
+- 10 ns 时钟分辨率；16 档 1-2-5 时基，单 LED 间隔从 10 ns 到 1 ms。
+- 硬件测量频率、周期、高/低电平时间、占空比、信号丢失；可选四周期平均。
+- 4096×1 深度采集，固定 2048 点预触发和 2048 点触发后窗口。
+- JA1 单通道可编程发生器，16 档频率和 16 档占空比。
+- 512 字节单通道位打包，CAP2 头与 CRC16/MODBUS；CRC 逐字节由 CPU 的 `CRC16.B` 指令计算。
+- 115200 8N1 UART CLI，CSV 与自动时基 VCD 导出。
+- SW15 架构调试页保留 cycle、instret、stall、forwarding、flush、branch、CRC 计数器。
+
+## 板载控制
+
+| 输入 | 作用 |
+| --- | --- |
+| SW0 | 0 上升沿；1 下降沿 |
+| SW[2:1] | 00 AUTO；01 NORMAL；10 SINGLE；11 FREE |
+| SW3 | 内置 JA1 发生器开关 |
+| SW[7:4] | 发生器频率预设 |
+| SW[11:8] | 发生器占空比预设 |
+| SW12 | 四周期测量平均 |
+| SW13 | 每 100 ms 输出一个 MEA2 遥测包 |
+| SW14 | 真实 JA1→JB1 自检比较 |
+| SW15 | CPU 架构调试 UI |
+| CENTER | RUN/HOLD；SINGLE 模式下启动一次采集 |
+| LEFT / RIGHT | 上一页 / 下一页 |
+| UP / DOWN | 更快 / 更慢时基，临时显示 1 秒 |
+
+RGB0：绿=RUN，蓝=HOLD，黄=SINGLE 等待（数码管 `Ar`），红=错误（数码管 `Err`）。RGB1：绿=有效信号，黄=等待触发，红=无信号；自检时绿/红表示 PASS/FAIL。
+
+## PC 接口
+
+安装 `pyserial` 后使用单通道命令：
 
 ```powershell
 python -m pip install pyserial
+python tools/analyzer_cli.py --port COM9 status
 python tools/analyzer_cli.py --port COM9 measure
-python tools/analyzer_cli.py --port COM9 dump --output capture.csv --vcd capture.vcd --sample-rate 100000000
+python tools/analyzer_cli.py --port COM9 run
+python tools/analyzer_cli.py --port COM9 hold
+python tools/analyzer_cli.py --port COM9 single
+python tools/analyzer_cli.py --port COM9 perf
+python tools/analyzer_cli.py --port COM9 dump --output capture.csv --vcd capture.vcd --packet capture.cap2
 ```
 
-An existing raw or CSV capture can be converted independently:
+CAP2 文件自带 `sample_div`，独立转换 VCD 不需要手工填写采样率：
 
 ```powershell
-python tools/capture_dump.py capture.csv capture.vcd --rate 100000000
+python tools/capture_dump.py capture.cap2 capture.vcd
 ```
 
-## MMIO map
+## 验证与文档
 
-| Base         | Peripheral        | Notable registers                                                                |
-| ------------ | ----------------- | -------------------------------------------------------------------------------- |
-| `0x40000000` | GPIO/result       | switches, buttons, LEDs, test result                                             |
-| `0x40001000` | UART              | TXDATA `+0x00`, STATUS `+0x04`, RXDATA `+0x08`                                   |
-| `0x40002000` | Timer             | 64-bit cycle counter                                                             |
-| `0x40003000` | Legacy PWM        | control, period, high time                                                       |
-| `0x40004000` | Capture           | control/status/channel/edge/depth/count/trigger index/sample divider/pre-trigger |
-| `0x40006000` | Performance       | retire, stall, forwarding, flush, branch, CRC counters                           |
-| `0x40007000` | Buttons           | state `+0x00`, clear-on-read event `+0x04`, switches `+0x08`                     |
-| `0x40008000` | Seven segment     | data0/data1/decimal points/control                                               |
-| `0x40009000` | Edge meter        | status/config, period, high time, frequency                                      |
-| `0x4000A000` | Pattern generator | enable, mode, period, high time, data                                            |
-| `0x40010000` | Capture window    | 4096 chronological samples through `0x40013FFF`                                  |
+- [当前状态与签核](STATUS.md)
+- [系统架构](docs/architecture.md)
+- [用户指南](docs/user_guide.md)
+- [技术规格](docs/specification.md)
+- [实板验证记录](docs/hardware_validation.md)
+- [最终演示脚本](docs/demo_script.md)
 
-Data RAM is `0x10000000-0x10000FFF`; instruction memory starts at `0x00000000` and boots
-`build/hex/analyzer.hex`.
-
-## Repository layout
-
-- `src/rtl/cpu`: CPU pipeline, decode, ALU, register file, hazards, CRC unit
-- `src/rtl/peripheral`: analyzer, UI, UART, generator, VGA, and legacy peripherals
-- `src/rtl/top`: SoC and Nexys A7 top-level wrappers
-- `src/sim`: XSim testbenches
-- `sw/tools`: assembler, reference model, and retire-trace comparator
-- `sw/firmware/analyzer.S`: v1.0 stand-alone firmware
-- `tools`: serial CLI and capture/VCD utilities
-- `scripts`: regression, implementation, programming, and hardware-test entry points
+旧多通道版本固定在 tag `v1.0-multichannel-prototype`；v2.0 发布标签为
+`v2.0-realtime-scope`。实板签核范围和用户免除项以
+`docs/hardware_validation.md` 为准。

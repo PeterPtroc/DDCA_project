@@ -56,12 +56,12 @@ module tb_soc_mvp;
         if (!capture_done) $fatal(1, "PASS published before Capture completed");
         if (dut.bus.cap.depth !== 13'd32)
           $fatal(1, "Capture depth mismatch: %0d", dut.bus.cap.depth);
-        if (dut.bus.pwm.period !== 32'd8 || dut.bus.pwm.high !== 32'd4)
+        if (dut.bus.generator.period !== 32'd8 || dut.bus.generator.high !== 32'd4)
           $fatal(
               1,
               "PWM configuration mismatch: period=%0d high=%0d",
-              dut.bus.pwm.period,
-              dut.bus.pwm.high
+              dut.bus.generator.period,
+              dut.bus.generator.high
           );
         if (!uart_started) $fatal(1, "PASS published without a UART transmission");
         $display("MVP PASS: cycles=%0d capture_count=%0d", cycles, dut.bus.cap.count);

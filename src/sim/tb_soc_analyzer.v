@@ -12,7 +12,7 @@ module tb_soc_analyzer;
   always #5 clk = ~clk;
   assign capture_in = pattern_out;
 
-  soc_top dut (
+  soc_top #(.IMEM_HEX("build/hex/analyzer.hex"), .ENABLE_LEGACY_PATTERN(1)) dut (
       .clk(clk), .rst(rst), .sw(16'd0), .btn(5'd0),
       .capture_in(capture_in), .uart_rx(1'b1), .led(), .uart_tx(uart_tx),
       .pwm_out(), .pattern_out(pattern_out), .pattern_enabled(pattern_enabled),

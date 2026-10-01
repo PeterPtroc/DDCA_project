@@ -136,7 +136,13 @@ Invoke-DifferentialTests
 Invoke-XSimTest "tb_mmio_map" "src\sim\tb_mmio_map.v" "MMIO MAP PASS"
 Invoke-XSimTest "tb_analyzer_peripherals" "src\sim\tb_analyzer_peripherals.v" "ANALYZER PERIPHERALS PASS"
 Invoke-XSimTest "tb_logic_capture_v1" "src\sim\tb_logic_capture_v1.v" "LOGIC CAPTURE V1 PASS"
+Invoke-XSimTest "tb_live_scope" "src\sim\tb_live_scope.v" "LIVE SCOPE PASS"
+Invoke-XSimTest "tb_edge_meter_scope" "src\sim\tb_edge_meter_scope.v" "EDGE METER SCOPE PASS"
+Invoke-XSimTest "tb_signal_generator" "src\sim\tb_signal_generator.v" "SIGNAL GENERATOR PASS"
+Invoke-XSimTest "tb_scope_capture" "src\sim\tb_scope_capture.v" "SCOPE CAPTURE PASS"
+Invoke-XSimTest "tb_scope_ui" "src\sim\tb_scope_ui.v" "SCOPE UI PASS"
 Invoke-XSimTest "tb_soc_mvp" "src\sim\tb_soc_mvp.v" "MVP PASS"
 Invoke-XSimTest "tb_soc_analyzer" "src\sim\tb_soc_analyzer.v" "SOC ANALYZER PASS"
+Invoke-XSimTest "tb_soc_realtime_scope" "src\sim\tb_soc_realtime_scope.v" "SOC REALTIME SCOPE PASS"
 
 Write-Host "WINDOWS TEST PASS"

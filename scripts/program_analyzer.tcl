@@ -1,16 +1,19 @@
-# Program the signed-off analyzer bitstream on the first attached Nexys A7-100T.
+# Program the signed-off real-time scope bitstream on the first attached Nexys A7-100T.
 # Run from PowerShell:
 #   vivado -mode batch -source scripts/program_analyzer.tcl
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
-set bitstream_file [file join $root build vivado nexys_a7_analyzer_v1.bit]
+set bitstream_file [file join $root build vivado rv32_realtime_scope.bit]
 
 if {![file exists $bitstream_file]} {
     error "Bitstream not found: run scripts/build_bitstream.tcl first"
 }
 
 open_hw_manager
-connect_hw_server -allow_non_jtag
+# This Windows host reserves TCP 3034..3133, which includes Vivado's default
+# 3121.  Use an unreserved local hw_server port; a caller may start it with:
+# hw_server -s tcp::31234 -p0
+connect_hw_server -url TCP:localhost:31234 -allow_non_jtag
 set targets [get_hw_targets -quiet]
 if {[llength $targets] == 0} {
     error "No JTAG hardware target found; connect and power the Nexys A7-100T"

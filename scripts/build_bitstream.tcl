@@ -3,9 +3,9 @@
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 set build_dir [file join $root build vivado]
-set project_file [file join $build_dir rv32_digital_analyzer.xpr]
+set project_file [file join $build_dir rv32_realtime_scope.xpr]
 set report_dir [file join $build_dir reports]
-set bitstream_file [file join $build_dir nexys_a7_analyzer_v1.bit]
+set bitstream_file [file join $build_dir rv32_realtime_scope.bit]
 
 if {![file exists $project_file]} {
     error "Vivado project not found: run scripts/create_vivado_project.tcl first"
@@ -18,12 +18,25 @@ open_project $project_file
 # resolves identically in simulation and synthesis.
 cd $root
 synth_design -top nexys_a7_top -part xc7a100tcsg324-1
-write_checkpoint -force [file join $build_dir nexys_a7_analyzer_v1_synth.dcp]
+write_checkpoint -force [file join $build_dir rv32_realtime_scope_synth.dcp]
 opt_design
 place_design -directive ExtraPostPlacementOpt
 phys_opt_design -directive AggressiveExplore
 route_design -directive AggressiveExplore
-write_checkpoint -force [file join $build_dir nexys_a7_analyzer_v1_routed.dcp]
+
+# A marginal post-route result on this design is dominated by CPU forwarding
+# and ALU routing delay.  The plan requires investigation below +0.1 ns, so
+# give Vivado one legal timing-focused retry for both near misses and failures
+# before applying the hard timing gate below.  The clock constraint and path
+# exceptions are unchanged.
+set preliminary_setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
+if {[llength $preliminary_setup_path] != 0 &&
+    [get_property SLACK $preliminary_setup_path] < 0.100} {
+    puts "TIMING RETRY: post-route WNS=[get_property SLACK $preliminary_setup_path] ns"
+    phys_opt_design -directive AggressiveExplore
+    route_design -directive NoTimingRelaxation
+}
+write_checkpoint -force [file join $build_dir rv32_realtime_scope_routed.dcp]
 
 report_utilization -hierarchical -file [file join $report_dir utilization_routed.rpt] -force
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose \

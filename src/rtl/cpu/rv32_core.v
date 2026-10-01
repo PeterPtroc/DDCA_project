@@ -111,9 +111,14 @@ module rv32_core (
   // Keep the forwarding decision one-hot on the operand datapaths. Encoding
   // it and then decoding it again added a LUT level to the EX-to-PC branch
   // path once the analyzer peripherals increased placement pressure.
-  wire ex_match_a = exmem_valid && exmem_reg_we && !exmem_mem_re &&
+  // A load-use consumer is already separated by the interlock, so a valid EX
+  // consumer can never need the address value of an EX/MEM load.  Keeping
+  // exmem_mem_re in these match terms put that control bit on the full
+  // forwarding/branch/PC redirect path.  Removing the redundant qualifier
+  // preserves architectural behavior and shortens the 100 MHz critical path.
+  wire ex_match_a = exmem_valid && exmem_reg_we &&
                     exmem_rd != 0 && exmem_rd == idex_rs1;
-  wire ex_match_b = exmem_valid && exmem_reg_we && !exmem_mem_re &&
+  wire ex_match_b = exmem_valid && exmem_reg_we &&
                     exmem_rd != 0 && exmem_rd == idex_rs2;
   wire wb_match_a = !ex_match_a && memwb_valid && memwb_reg_we &&
                     memwb_rd != 0 && memwb_rd == idex_rs1;
