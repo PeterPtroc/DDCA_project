@@ -13,14 +13,18 @@
 - [x] M1 basic CPU combinational modules
 - [x] M2 five-stage pipeline, memories and retire interface (basic RTL)
 - [x] M3 forwarding, load-use stall and control flush (basic RTL)
-- [ ] M4 reference model and differential verification
+- [x] M4 reference model and differential verification
 - [x] M5 MMIO and peripheral RTL (basic RTL)
 - [x] M6 minimal SoC integration simulation
 - [x] M7 implementation, timing and bitstream
-- [ ] M8 physical validation
+- [x] M8 physical validation
 
 ## Latest checks
-- Assembler unit tests: 3/3 PASS.
+- Python unit tests: 6/6 PASS (assembler, reference model, and trace diff).
+- CPU differential XSim: PASS for `isa_test` (117 retire events),
+  `hazard_test` (47 retire events), and `crc_test` (26 retire events). RTL and
+  reference traces match for PC, instruction, register writeback, and memory
+  stores at every architectural retire event.
 - MMIO map XSim: PASS for Capture DATA `0x40010000-0x40013fff`, depth 4096,
   PWM readback, UART STATUS, and independent PERF decoding.
 - Closed-loop SoC XSim: `MVP PASS`, 9293 cycles, Capture count 32.
@@ -35,11 +39,14 @@
   There are no unclocked or unconstrained internal endpoints.
 - Bitstream: `build/vivado/nexys_a7_mvp.bit` (3,825,897 bytes).
 
-## Remaining blockers
-- Reference-model and differential CPU tests are not implemented.
-- Physical PWM-to-Capture loopback and UART validation are not run yet. The
-  JA1-to-JB1 cable is connected and matches `pmod_ja[0]` to `pmod_jb[0]`.
+## Physical validation
+- Physical validation PASS: after JTAG programming, COM9 received UART byte
+  `0x50` (`P`) at 115200 baud. This confirms the CRC, PWM, physical JA1-to-JB1
+  loopback, Capture analysis, and UART path on the board. The cable maps
+  `pmod_ja[0]` to `pmod_jb[0]`.
 
 ## Next
-Program `build/vivado/nexys_a7_mvp.bit`, then perform the physical JA1-to-JB1
-loopback and UART checks on the board.
+The current bitstream is programmed and the physical JA1-to-JB1 loopback and
+UART checks have passed. M0-M8 are complete; remaining work is optional
+coverage expansion such as randomized instruction streams and longer-running
+firmware beyond the MVP.

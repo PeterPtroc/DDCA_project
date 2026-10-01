@@ -8,12 +8,12 @@ performance counters.
 ## Current scope
 
 The Windows development flow uses Python and Vivado 2024.2/XSim. The assembler
-regression tests, MMIO address-map simulation, closed-loop PWM-to-Capture SoC
-simulation, Vivado synthesis, implementation, timing, DRC, and bitstream
-generation have been exercised. The active top-level
+and reference-model unit tests, CPU differential verification, MMIO address-map
+simulation, closed-loop PWM-to-Capture SoC simulation, Vivado synthesis,
+implementation, timing, DRC, and bitstream generation have been exercised. The active top-level
 ports use the official Digilent Nexys A7-100T package-pin mapping in
-`constraints/nexys_a7_100t.xdc`. Physical-board validation has not yet been
-completed.
+`constraints/nexys_a7_100t.xdc`. Physical-board validation passed with the
+external JA1-to-JB1 loopback and UART output from the programmed bitstream.
 
 ## Layout
 
@@ -23,6 +23,8 @@ completed.
 - `src/rtl/memory`, `src/rtl/bus`: memories and MMIO interconnect
 - `src/sim`: simulation-only sources and testbenches
 - `sw/tools/rv32asm.py`: small self-contained assembler
+- `sw/tools/rv32_ref.py`: architectural RV32/custom-CRC reference interpreter
+- `sw/tools/diff_trace.py`: retire-trace differential checker
 - `sw/firmware`: bring-up and directed firmware examples
 - `scripts`: Vivado batch project/build entry points
 - `build`: generated hex, simulation objects and Vivado output
@@ -35,8 +37,10 @@ Run the complete Windows verification flow from PowerShell:
 .\scripts\test_windows.ps1
 ```
 
-The script assembles all firmware images, runs the Python assembler tests, and
-runs both XSim testbenches. To create the Vivado project, run:
+The script assembles all firmware images, runs six Python unit tests, compares
+RTL and reference retire traces for ISA, hazard, and CRC firmware, then runs
+the MMIO and closed-loop SoC XSim testbenches. To create the Vivado project,
+run:
 
 ```powershell
 vivado -mode batch -source scripts/create_vivado_project.tcl

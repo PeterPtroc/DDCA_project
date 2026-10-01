@@ -75,6 +75,39 @@ function Invoke-XSimTest {
     }
 }
 
+function Invoke-DifferentialTests {
+    $snapshot = "tb_cpu_trace_sim"
+    $testbench = (Resolve-Path -LiteralPath "src\sim\tb_cpu_trace.v").Path
+    $sources = @($script:RtlSources) + $testbench
+    Invoke-Checked $script:Xvlog (@("--nolog", "-work", "work") + $sources)
+    Invoke-Checked $script:Xelab @("--nolog", "tb_cpu_trace", "-s", $snapshot, "-debug", "typical")
+
+    New-Item -ItemType Directory -Path "build\trace" -Force | Out-Null
+    foreach ($name in @("isa_test", "hazard_test", "crc_test")) {
+        $referenceTrace = Join-Path "build\trace" "$name.reference.csv"
+        $testFlag = $name.ToUpperInvariant()
+
+        $output = & $script:Xsim $snapshot "--nolog" "--runall" `
+            "--testplusarg" $testFlag 2>&1
+        $exitCode = $LASTEXITCODE
+        $output | ForEach-Object { Write-Host $_ }
+        if ($exitCode -ne 0) {
+            throw "RTL trace simulation for $name failed with exit code $exitCode"
+        }
+        if (($output -join "`n") -notmatch "RTL TRACE PASS") {
+            throw "RTL trace simulation for $name did not report PASS"
+        }
+
+        Invoke-Checked $script:Python @(
+            "sw\tools\rv32_ref.py", "build\hex\$name.hex", $referenceTrace
+        )
+        Invoke-Checked $script:Python @(
+            "sw\tools\diff_trace.py", $referenceTrace,
+            "build\trace\$name.rtl.csv", "--name", $name
+        )
+    }
+}
+
 $Python = (Get-Command python.exe -ErrorAction Stop).Source
 $VivadoBin = Find-VivadoBin
 $Xvlog = Join-Path $VivadoBin "xvlog.bat"
@@ -98,6 +131,7 @@ $RtlSources = @(
         ForEach-Object FullName
 )
 
+Invoke-DifferentialTests
 Invoke-XSimTest "tb_mmio_map" "src\sim\tb_mmio_map.v" "MMIO MAP PASS"
 Invoke-XSimTest "tb_soc_mvp" "src\sim\tb_soc_mvp.v" "MVP PASS"
 
