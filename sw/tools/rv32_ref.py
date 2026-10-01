@@ -6,14 +6,20 @@ import csv
 import sys
 from pathlib import Path
 
-
 DATA_BASE = 0x10000000
 DATA_SIZE = 4096
 TEST_RESULT = 0x4000000C
 PASS_VALUE = 0x600D600D
 TRACE_FIELDS = (
-    "step", "pc", "insn", "rd_we", "rd", "rd_data",
-    "mem_we", "mem_addr", "mem_data",
+    "step",
+    "pc",
+    "insn",
+    "rd_we",
+    "rd",
+    "rd_data",
+    "mem_we",
+    "mem_addr",
+    "mem_data",
 )
 
 
@@ -221,7 +227,9 @@ class RV32Reference:
             rows.append(row)
             if done:
                 if self.test_result != PASS_VALUE:
-                    raise RuntimeError(f"firmware reported FAIL 0x{self.test_result:08x}")
+                    raise RuntimeError(
+                        f"firmware reported FAIL 0x{self.test_result:08x}"
+                    )
                 return rows
         raise RuntimeError(f"reference timeout after {max_steps} instructions")
 

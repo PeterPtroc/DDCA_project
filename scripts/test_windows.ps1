@@ -124,6 +124,7 @@ foreach ($firmware in Get-ChildItem -LiteralPath "sw\firmware" -Filter "*.S") {
 }
 
 Invoke-Checked $Python @("-m", "unittest", "discover", "-s", "sw\tools", "-p", "test_*.py")
+Invoke-Checked $Python @("-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py")
 
 $RtlSources = @(
     Get-ChildItem -LiteralPath "src\rtl" -Filter "*.v" -Recurse |
@@ -133,6 +134,9 @@ $RtlSources = @(
 
 Invoke-DifferentialTests
 Invoke-XSimTest "tb_mmio_map" "src\sim\tb_mmio_map.v" "MMIO MAP PASS"
+Invoke-XSimTest "tb_analyzer_peripherals" "src\sim\tb_analyzer_peripherals.v" "ANALYZER PERIPHERALS PASS"
+Invoke-XSimTest "tb_logic_capture_v1" "src\sim\tb_logic_capture_v1.v" "LOGIC CAPTURE V1 PASS"
 Invoke-XSimTest "tb_soc_mvp" "src\sim\tb_soc_mvp.v" "MVP PASS"
+Invoke-XSimTest "tb_soc_analyzer" "src\sim\tb_soc_analyzer.v" "SOC ANALYZER PASS"
 
 Write-Host "WINDOWS TEST PASS"

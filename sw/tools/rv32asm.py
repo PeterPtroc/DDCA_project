@@ -1,17 +1,34 @@
 #!/usr/bin/env python3
 """Small two-pass assembler for the RV32I/custom subset used by the MVP."""
+
 import argparse
 import re
 
-
 REG = {
-    "zero": 0, "ra": 1, "sp": 2, "gp": 3, "tp": 4,
-    "t0": 5, "t1": 6, "t2": 7,
+    "zero": 0,
+    "ra": 1,
+    "sp": 2,
+    "gp": 3,
+    "tp": 4,
+    "t0": 5,
+    "t1": 6,
+    "t2": 7,
     **{f"s{i}": 8 + i for i in range(2)},
     **{f"a{i}": 10 + i for i in range(8)},
-    "s2": 18, "s3": 19, "s4": 20, "s5": 21, "s6": 22,
-    "s7": 23, "s8": 24, "s9": 25, "s10": 26, "s11": 27,
-    "t3": 28, "t4": 29, "t5": 30, "t6": 31,
+    "s2": 18,
+    "s3": 19,
+    "s4": 20,
+    "s5": 21,
+    "s6": 22,
+    "s7": 23,
+    "s8": 24,
+    "s9": 25,
+    "s10": 26,
+    "s11": 27,
+    "t3": 28,
+    "t4": 29,
+    "t5": 30,
+    "t6": 31,
 }
 REG.update({f"x{i}": i for i in range(32)})
 
@@ -45,7 +62,7 @@ def expand_pseudo(s):
         imm = int(p[2], 0)
         if -2048 <= imm <= 2047:
             return [f"addi {p[1]}, x0, {imm}"]
-        signed = imm & 0xffffffff
+        signed = imm & 0xFFFFFFFF
         if signed & 0x80000000:
             signed -= 0x100000000
         upper = (signed + 0x800) >> 12
@@ -82,35 +99,114 @@ def assemble(lines):
         v = 0
         if m == ".word":
             v = int(p[1], 0)
-        elif m in ("add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and"):
-            f3 = {"add": 0, "sub": 0, "sll": 1, "slt": 2, "sltu": 3,
-                  "xor": 4, "srl": 5, "sra": 5, "or": 6, "and": 7}[m]
+        elif m in (
+            "add",
+            "sub",
+            "sll",
+            "slt",
+            "sltu",
+            "xor",
+            "srl",
+            "sra",
+            "or",
+            "and",
+        ):
+            f3 = {
+                "add": 0,
+                "sub": 0,
+                "sll": 1,
+                "slt": 2,
+                "sltu": 3,
+                "xor": 4,
+                "srl": 5,
+                "sra": 5,
+                "or": 6,
+                "and": 7,
+            }[m]
             f7 = 0x20 if m in ("sub", "sra") else 0
             v = enc_r(f7, reg(p[3]), reg(p[2]), f3, reg(p[1]))
-        elif m in ("addi", "slti", "sltiu", "xori", "ori", "andi", "slli", "srli", "srai"):
-            f3 = {"addi": 0, "slti": 2, "sltiu": 3, "xori": 4,
-                  "ori": 6, "andi": 7, "slli": 1, "srli": 5, "srai": 5}[m]
+        elif m in (
+            "addi",
+            "slti",
+            "sltiu",
+            "xori",
+            "ori",
+            "andi",
+            "slli",
+            "srli",
+            "srai",
+        ):
+            f3 = {
+                "addi": 0,
+                "slti": 2,
+                "sltiu": 3,
+                "xori": 4,
+                "ori": 6,
+                "andi": 7,
+                "slli": 1,
+                "srli": 5,
+                "srai": 5,
+            }[m]
             imm = int(p[3], 0)
             if m == "srai":
                 imm |= 0x400
-            v = ((imm & 0xfff) << 20) | (reg(p[2]) << 15) | (f3 << 12) | (reg(p[1]) << 7) | 0x13
+            v = (
+                ((imm & 0xFFF) << 20)
+                | (reg(p[2]) << 15)
+                | (f3 << 12)
+                | (reg(p[1]) << 7)
+                | 0x13
+            )
         elif m in ("lw", "sw"):
             imm = int(p[2], 0)
             rs1 = reg(p[3])
             rs2_or_rd = reg(p[1])
             if m == "lw":
-                v = ((imm & 0xfff) << 20) | (rs1 << 15) | (2 << 12) | (rs2_or_rd << 7) | 3
+                v = (
+                    ((imm & 0xFFF) << 20)
+                    | (rs1 << 15)
+                    | (2 << 12)
+                    | (rs2_or_rd << 7)
+                    | 3
+                )
             else:
-                v = (((imm >> 5) & 0x7f) << 25) | (rs2_or_rd << 20) | (rs1 << 15) | (2 << 12) | ((imm & 0x1f) << 7) | 0x23
+                v = (
+                    (((imm >> 5) & 0x7F) << 25)
+                    | (rs2_or_rd << 20)
+                    | (rs1 << 15)
+                    | (2 << 12)
+                    | ((imm & 0x1F) << 7)
+                    | 0x23
+                )
         elif m in ("lui", "auipc"):
-            v = ((int(p[2], 0) & 0xfffff) << 12) | (reg(p[1]) << 7) | (0x37 if m == "lui" else 0x17)
+            v = (
+                ((int(p[2], 0) & 0xFFFFF) << 12)
+                | (reg(p[1]) << 7)
+                | (0x37 if m == "lui" else 0x17)
+            )
         elif m in ("beq", "bne", "blt", "bge", "bltu", "bgeu"):
             imm = num(p[3], labels, pc)
             f3 = {"beq": 0, "bne": 1, "blt": 4, "bge": 5, "bltu": 6, "bgeu": 7}[m]
-            v = (((imm >> 12) & 1) << 31) | (((imm >> 5) & 0x3f) << 25) | (reg(p[2]) << 20) | (reg(p[1]) << 15) | (f3 << 12) | (((imm >> 1) & 0xf) << 8) | (((imm >> 11) & 1) << 7) | 0x63
+            v = (
+                (((imm >> 12) & 1) << 31)
+                | (((imm >> 5) & 0x3F) << 25)
+                | (reg(p[2]) << 20)
+                | (reg(p[1]) << 15)
+                | (f3 << 12)
+                | (((imm >> 1) & 0xF) << 8)
+                | (((imm >> 11) & 1) << 7)
+                | 0x63
+            )
         elif m == "jal":
             imm = num(p[2], labels, pc)
-            v = (((imm >> 20) & 1) << 31) | (((imm >> 1) & 0x3ff) << 21) | (((imm >> 11) & 1) << 20) | (((imm >> 12) & 0xff) << 12) | (reg(p[1]) << 7) | 0x6f
+            v = (
+                (((imm >> 20) & 1) << 31)
+                | (((imm >> 1) & 0x3FF) << 21)
+                | (((imm >> 11) & 1) << 20)
+                | (((imm >> 12) & 0xFF) << 12)
+                | (reg(p[1]) << 7)
+                | 0x6F
+            )
         elif m == "jalr":
             try:
                 imm = int(p[2], 0)
@@ -118,12 +214,12 @@ def assemble(lines):
             except (ValueError, KeyError):
                 rs1 = reg(p[2])
                 imm = int(p[3], 0)
-            v = ((imm & 0xfff) << 20) | (rs1 << 15) | (reg(p[1]) << 7) | 0x67
+            v = ((imm & 0xFFF) << 20) | (rs1 << 15) | (reg(p[1]) << 7) | 0x67
         elif m == "crc16.b":
-            v = (reg(p[3]) << 20) | (reg(p[2]) << 15) | (reg(p[1]) << 7) | 0x0b
+            v = (reg(p[3]) << 20) | (reg(p[2]) << 15) | (reg(p[1]) << 7) | 0x0B
         else:
             raise ValueError(f"unsupported instruction: {s}")
-        out.append(v & 0xffffffff)
+        out.append(v & 0xFFFFFFFF)
     return out
 
 

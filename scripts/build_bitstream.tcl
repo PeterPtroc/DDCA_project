@@ -5,7 +5,7 @@ set root [file normalize [file join $script_dir ..]]
 set build_dir [file join $root build vivado]
 set project_file [file join $build_dir rv32_digital_analyzer.xpr]
 set report_dir [file join $build_dir reports]
-set bitstream_file [file join $build_dir nexys_a7_mvp.bit]
+set bitstream_file [file join $build_dir nexys_a7_analyzer_v1.bit]
 
 if {![file exists $project_file]} {
     error "Vivado project not found: run scripts/create_vivado_project.tcl first"
@@ -18,12 +18,12 @@ open_project $project_file
 # resolves identically in simulation and synthesis.
 cd $root
 synth_design -top nexys_a7_top -part xc7a100tcsg324-1
-write_checkpoint -force [file join $build_dir nexys_a7_mvp_synth.dcp]
+write_checkpoint -force [file join $build_dir nexys_a7_analyzer_v1_synth.dcp]
 opt_design
-place_design
-phys_opt_design
-route_design -directive Explore
-write_checkpoint -force [file join $build_dir nexys_a7_mvp_routed.dcp]
+place_design -directive ExtraPostPlacementOpt
+phys_opt_design -directive AggressiveExplore
+route_design -directive AggressiveExplore
+write_checkpoint -force [file join $build_dir nexys_a7_analyzer_v1_routed.dcp]
 
 report_utilization -hierarchical -file [file join $report_dir utilization_routed.rpt] -force
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose \

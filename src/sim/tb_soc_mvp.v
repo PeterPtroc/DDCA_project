@@ -16,17 +16,28 @@ module tb_soc_mvp;
   always #5 clk = ~clk;
   assign capture_in = {7'd0, pwm_out};
 
-  soc_top dut (
+  soc_top #(.IMEM_HEX("build/hex/mvp.hex")) dut (
       .clk(clk),
       .rst(rst),
       .sw(sw),
       .btn(btn),
       .capture_in(capture_in),
+      .uart_rx(1'b1),
       .led(led),
       .uart_tx(uart_tx),
       .pwm_out(pwm_out),
+      .pattern_out(),
+      .pattern_enabled(),
       .test_result(test_result),
-      .capture_done(capture_done)
+      .capture_done(capture_done),
+      .seg_an(),
+      .seg(),
+      .seg_dp(),
+      .vga_r(),
+      .vga_g(),
+      .vga_b(),
+      .vga_hs(),
+      .vga_vs()
   );
 
   always @(negedge uart_tx) begin

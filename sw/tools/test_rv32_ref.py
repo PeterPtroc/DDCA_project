@@ -13,15 +13,17 @@ class ReferenceModelTests(unittest.TestCase):
         self.assertEqual(crc, 0x4B37)
 
     def test_reference_reaches_pass_signature(self):
-        words = assemble([
-            "addi t0, x0, 7",
-            "addi t1, t0, -2",
-            "add t2, t0, t1",
-            "lui t0, 0x40000",
-            "lui t1, 0x600d6",
-            "addi t1, t1, 13",
-            "sw t1, 12(t0)",
-        ])
+        words = assemble(
+            [
+                "addi t0, x0, 7",
+                "addi t1, t0, -2",
+                "add t2, t0, t1",
+                "lui t0, 0x40000",
+                "lui t1, 0x600d6",
+                "addi t1, t1, 13",
+                "sw t1, 12(t0)",
+            ]
+        )
         rows = RV32Reference(words).run()
         self.assertEqual(len(rows), 7)
         self.assertEqual(rows[2]["rd_data"], 12)
@@ -29,8 +31,15 @@ class ReferenceModelTests(unittest.TestCase):
 
     def test_diff_reports_architectural_mismatch(self):
         row = {
-            "step": 0, "pc": 0, "insn": 0x13, "rd_we": 0, "rd": 0,
-            "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0,
+            "step": 0,
+            "pc": 0,
+            "insn": 0x13,
+            "rd_we": 0,
+            "rd": 0,
+            "rd_data": 0,
+            "mem_we": 0,
+            "mem_addr": 0,
+            "mem_data": 0,
         }
         compare_traces([row], [dict(row)])
         changed = dict(row)

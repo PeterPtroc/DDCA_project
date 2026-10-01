@@ -8,7 +8,6 @@ from pathlib import Path
 
 from rv32_ref import TRACE_FIELDS
 
-
 HEX_FIELDS = {"pc", "insn", "rd_data", "mem_addr", "mem_data"}
 
 
@@ -20,12 +19,16 @@ def read_trace(path):
             raise ValueError(f"{path}: unexpected trace header {reader.fieldnames}")
         for line_number, raw in enumerate(reader, 2):
             try:
-                rows.append({
-                    field: int(raw[field], 16 if field in HEX_FIELDS else 10)
-                    for field in TRACE_FIELDS
-                })
+                rows.append(
+                    {
+                        field: int(raw[field], 16 if field in HEX_FIELDS else 10)
+                        for field in TRACE_FIELDS
+                    }
+                )
             except (KeyError, ValueError) as error:
-                raise ValueError(f"{path}:{line_number}: invalid trace row: {error}") from error
+                raise ValueError(
+                    f"{path}:{line_number}: invalid trace row: {error}"
+                ) from error
     return rows
 
 

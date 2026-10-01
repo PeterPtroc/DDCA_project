@@ -1,6 +1,6 @@
 `default_nettype none
 module imem #(
-    parameter HEX_FILE = "build/hex/mvp.hex"
+    parameter HEX_FILE = "build/hex/analyzer.hex"
 ) (
     input  wire [31:0] addr,
     output wire [31:0] rdata

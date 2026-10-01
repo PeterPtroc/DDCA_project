@@ -108,21 +108,22 @@ module rv32_core (
       .idex_rd(idex_rd),
       .load_use_stall(load_stall)
   );
-  wire [1:0] fwd_a, fwd_b;
-  forwarding_unit fu (
-      .rs1(idex_rs1),
-      .rs2(idex_rs2),
-      .exmem_rd(exmem_rd),
-      .memwb_rd(memwb_rd),
-      .exmem_we(exmem_valid && exmem_reg_we),
-      .memwb_we(memwb_valid && memwb_reg_we),
-      .exmem_is_load(exmem_mem_re),
-      .fwd_a(fwd_a),
-      .fwd_b(fwd_b)
-  );
+  // Keep the forwarding decision one-hot on the operand datapaths. Encoding
+  // it and then decoding it again added a LUT level to the EX-to-PC branch
+  // path once the analyzer peripherals increased placement pressure.
+  wire ex_match_a = exmem_valid && exmem_reg_we && !exmem_mem_re &&
+                    exmem_rd != 0 && exmem_rd == idex_rs1;
+  wire ex_match_b = exmem_valid && exmem_reg_we && !exmem_mem_re &&
+                    exmem_rd != 0 && exmem_rd == idex_rs2;
+  wire wb_match_a = !ex_match_a && memwb_valid && memwb_reg_we &&
+                    memwb_rd != 0 && memwb_rd == idex_rs1;
+  wire wb_match_b = !ex_match_b && memwb_valid && memwb_reg_we &&
+                    memwb_rd != 0 && memwb_rd == idex_rs2;
+  wire [1:0] fwd_a = ex_match_a ? 2'd1 : wb_match_a ? 2'd2 : 2'd0;
+  wire [1:0] fwd_b = ex_match_b ? 2'd1 : wb_match_b ? 2'd2 : 2'd0;
   wire [31:0] fwd_ex_val = exmem_alu, fwd_wb_val = wb_value;
-  wire [31:0] ex_a = (fwd_a == 1) ? fwd_ex_val : (fwd_a == 2) ? fwd_wb_val : idex_rs1_val;
-  wire [31:0] ex_b_reg = (fwd_b == 1) ? fwd_ex_val : (fwd_b == 2) ? fwd_wb_val : idex_rs2_val;
+  wire [31:0] ex_a = ex_match_a ? fwd_ex_val : wb_match_a ? fwd_wb_val : idex_rs1_val;
+  wire [31:0] ex_b_reg = ex_match_b ? fwd_ex_val : wb_match_b ? fwd_wb_val : idex_rs2_val;
   wire [15:0] crc_next;
   crc16_unit crc (
       .crc(ex_a[15:0]),

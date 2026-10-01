@@ -27,6 +27,8 @@ module tb_mmio_map;
       .sw(16'd0),
       .btn(5'd0),
       .capture_in(8'd0),
+      .uart_rx_i(1'b1),
+      .display_index(12'd0),
       .retire(1'b0),
       .stall(1'b0),
       .fwd_ex(2'd0),
@@ -40,10 +42,16 @@ module tb_mmio_map;
       .test_result(test_result),
       .uart_tx(uart_tx),
       .pwm_out(pwm_out),
+      .pattern_out(),
+      .pattern_enabled(),
       .capture_sample(capture_sample),
+      .display_sample(),
       .capture_armed(capture_armed),
       .capture_triggered(capture_triggered),
-      .capture_done(capture_done)
+      .capture_done(capture_done),
+      .seg_an(),
+      .seg(),
+      .seg_dp()
   );
 
   task mmio_write;
@@ -79,6 +87,8 @@ module tb_mmio_map;
 
     check_read(32'h40001004, 32'd1);
     check_read(32'h40004010, 32'd4096);
+    check_read(32'h4000401c, 32'd1);
+    check_read(32'h40004020, 32'd0);
 
     mmio_write(32'h40004010, 32'd5000);
     check_read(32'h40004010, 32'd4096);
@@ -89,6 +99,23 @@ module tb_mmio_map;
     mmio_write(32'h40003008, 32'd4);
     check_read(32'h40003004, 32'd8);
     check_read(32'h40003008, 32'd4);
+
+    mmio_write(32'h4000401c, 32'd10);
+    mmio_write(32'h40004020, 32'd2048);
+    check_read(32'h4000401c, 32'd10);
+    check_read(32'h40004020, 32'd2048);
+
+    mmio_write(32'h40008000, 32'h03020100);
+    mmio_write(32'h4000800c, 32'd1);
+    check_read(32'h40008000, 32'h03020100);
+    check_read(32'h4000800c, 32'd1);
+
+    mmio_write(32'h4000a008, 32'd100);
+    mmio_write(32'h4000a00c, 32'd30);
+    mmio_write(32'h4000a000, 32'hff);
+    check_read(32'h4000a008, 32'd100);
+    check_read(32'h4000a00c, 32'd30);
+    check_read(32'h4000a000, 32'hff);
 
     dut.cap.mem[0] = 8'ha5;
     dut.cap.mem[1024] = 8'h3c;
@@ -102,7 +129,7 @@ module tb_mmio_map;
     #1;
     if (rdata === 32'd0) $fatal(1, "PERF base was not decoded independently");
 
-    $display("MMIO MAP PASS: Capture DATA 0x40010000..0x40013fff, depth=4096");
+    $display("MMIO MAP PASS: v1.0 peripherals and Capture DATA window");
     $finish;
   end
 endmodule

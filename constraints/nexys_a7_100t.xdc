@@ -58,6 +58,42 @@ set_property -dict { PACKAGE_PIN P18 IOSTANDARD LVCMOS33 } [get_ports {btn[4]}]
 
 ## FPGA-to-PC USB-UART. Digilent names D4 UART_RXD_OUT from the PC/DTE side.
 set_property -dict { PACKAGE_PIN D4 IOSTANDARD LVCMOS33 } [get_ports {uart_tx}]
+## PC-to-FPGA USB-UART receive path.
+set_property -dict { PACKAGE_PIN C4 IOSTANDARD LVCMOS33 } [get_ports {uart_rx}]
+
+## Eight-digit seven-segment display (all signals active low).
+set_property -dict { PACKAGE_PIN T10 IOSTANDARD LVCMOS33 } [get_ports {seg[0]}]
+set_property -dict { PACKAGE_PIN R10 IOSTANDARD LVCMOS33 } [get_ports {seg[1]}]
+set_property -dict { PACKAGE_PIN K16 IOSTANDARD LVCMOS33 } [get_ports {seg[2]}]
+set_property -dict { PACKAGE_PIN K13 IOSTANDARD LVCMOS33 } [get_ports {seg[3]}]
+set_property -dict { PACKAGE_PIN P15 IOSTANDARD LVCMOS33 } [get_ports {seg[4]}]
+set_property -dict { PACKAGE_PIN T11 IOSTANDARD LVCMOS33 } [get_ports {seg[5]}]
+set_property -dict { PACKAGE_PIN L18 IOSTANDARD LVCMOS33 } [get_ports {seg[6]}]
+set_property -dict { PACKAGE_PIN H15 IOSTANDARD LVCMOS33 } [get_ports {seg_dp}]
+set_property -dict { PACKAGE_PIN J17 IOSTANDARD LVCMOS33 } [get_ports {seg_an[0]}]
+set_property -dict { PACKAGE_PIN J18 IOSTANDARD LVCMOS33 } [get_ports {seg_an[1]}]
+set_property -dict { PACKAGE_PIN T9  IOSTANDARD LVCMOS33 } [get_ports {seg_an[2]}]
+set_property -dict { PACKAGE_PIN J14 IOSTANDARD LVCMOS33 } [get_ports {seg_an[3]}]
+set_property -dict { PACKAGE_PIN P14 IOSTANDARD LVCMOS33 } [get_ports {seg_an[4]}]
+set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 } [get_ports {seg_an[5]}]
+set_property -dict { PACKAGE_PIN K2  IOSTANDARD LVCMOS33 } [get_ports {seg_an[6]}]
+set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports {seg_an[7]}]
+
+## 640x480 VGA output.
+set_property -dict { PACKAGE_PIN A3 IOSTANDARD LVCMOS33 } [get_ports {vga_r[0]}]
+set_property -dict { PACKAGE_PIN B4 IOSTANDARD LVCMOS33 } [get_ports {vga_r[1]}]
+set_property -dict { PACKAGE_PIN C5 IOSTANDARD LVCMOS33 } [get_ports {vga_r[2]}]
+set_property -dict { PACKAGE_PIN A4 IOSTANDARD LVCMOS33 } [get_ports {vga_r[3]}]
+set_property -dict { PACKAGE_PIN C6 IOSTANDARD LVCMOS33 } [get_ports {vga_g[0]}]
+set_property -dict { PACKAGE_PIN A5 IOSTANDARD LVCMOS33 } [get_ports {vga_g[1]}]
+set_property -dict { PACKAGE_PIN B6 IOSTANDARD LVCMOS33 } [get_ports {vga_g[2]}]
+set_property -dict { PACKAGE_PIN A6 IOSTANDARD LVCMOS33 } [get_ports {vga_g[3]}]
+set_property -dict { PACKAGE_PIN B7 IOSTANDARD LVCMOS33 } [get_ports {vga_b[0]}]
+set_property -dict { PACKAGE_PIN C7 IOSTANDARD LVCMOS33 } [get_ports {vga_b[1]}]
+set_property -dict { PACKAGE_PIN D7 IOSTANDARD LVCMOS33 } [get_ports {vga_b[2]}]
+set_property -dict { PACKAGE_PIN D8 IOSTANDARD LVCMOS33 } [get_ports {vga_b[3]}]
+set_property -dict { PACKAGE_PIN B11 IOSTANDARD LVCMOS33 } [get_ports {vga_hs}]
+set_property -dict { PACKAGE_PIN B12 IOSTANDARD LVCMOS33 } [get_ports {vga_vs}]
 
 ## Pmod JA bits map to JA1, JA2, JA3, JA4, JA7, JA8, JA9, JA10.
 set_property -dict { PACKAGE_PIN C17 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[0]}]
@@ -83,5 +119,5 @@ set_property -dict { PACKAGE_PIN H16 IOSTANDARD LVCMOS33 } [get_ports {pmod_jb[7
 ## check_timing HIGH findings. These controls and capture pins are asynchronous,
 ## while the status/UART/PWM outputs have no external source-synchronous timing
 ## contract, so encode that intent explicitly instead of inventing I/O delays.
-set_false_path -from [get_ports {reset_n sw[*] btn[*] pmod_jb[*]}]
-set_false_path -to [get_ports {led[*] uart_tx pmod_ja[*]}]
+set_false_path -from [get_ports {reset_n sw[*] btn[*] pmod_jb[*] uart_rx}]
+set_false_path -to [get_ports {led[*] uart_tx pmod_ja[*] seg[*] seg_an[*] seg_dp vga_r[*] vga_g[*] vga_b[*] vga_hs vga_vs}]
