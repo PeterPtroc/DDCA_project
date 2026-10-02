@@ -63,6 +63,7 @@ function Invoke-DifferentialTests {
     Invoke-Checked $script:Xelab @("--nolog", "tb_cpu_trace", "-s", $snapshot, "-debug", "typical")
 
     New-Item -ItemType Directory -Path "build\trace" -Force | Out-Null
+    New-Item -ItemType Directory -Path "build\benchmark" -Force | Out-Null
     foreach ($name in @("isa_test", "hazard_test", "crc_test")) {
         $referenceTrace = Join-Path "build\trace" "$name.reference.csv"
         $testFlag = $name.ToUpperInvariant()

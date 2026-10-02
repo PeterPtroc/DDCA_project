@@ -11,10 +11,14 @@ module tb_cpu_trace;
   reg [31:0] dmem[0:1023];
   reg [8*512-1:0] hex_path;
   reg [8*512-1:0] trace_path;
+  reg [8*512-1:0] metrics_path;
   integer trace_fd;
+  integer metrics_fd;
   integer i;
   integer cycles = 0;
   integer retire_step = 0;
+  integer stall_count = 0;
+  integer flush_count = 0;
 
   wire [31:0] imem_addr;
   wire [31:0] imem_rdata = imem[imem_addr[12:2]];
@@ -73,12 +77,15 @@ module tb_cpu_trace;
     if ($test$plusargs("ISA_TEST")) begin
       hex_path = "build/hex/isa_test.hex";
       trace_path = "build/trace/isa_test.rtl.csv";
+      metrics_path = "build/benchmark/isa_test.csv";
     end else if ($test$plusargs("HAZARD_TEST")) begin
       hex_path = "build/hex/hazard_test.hex";
       trace_path = "build/trace/hazard_test.rtl.csv";
+      metrics_path = "build/benchmark/hazard_test.csv";
     end else if ($test$plusargs("CRC_TEST")) begin
       hex_path = "build/hex/crc_test.hex";
       trace_path = "build/trace/crc_test.rtl.csv";
+      metrics_path = "build/benchmark/crc_test.csv";
     end else begin
       $fatal(1, "select +ISA_TEST, +HAZARD_TEST, or +CRC_TEST");
     end
@@ -87,7 +94,10 @@ module tb_cpu_trace;
     $readmemh(hex_path, imem);
     trace_fd = $fopen(trace_path, "w");
     if (trace_fd == 0) $fatal(1, "cannot open trace output");
+    metrics_fd = $fopen(metrics_path, "w");
+    if (metrics_fd == 0) $fatal(1, "cannot open benchmark output");
     $fdisplay(trace_fd, "step,pc,insn,rd_we,rd,rd_data,mem_we,mem_addr,mem_data");
+    $fdisplay(metrics_fd, "cycles,instret,stall,flush");
     repeat (10) @(posedge clk);
     rst = 1'b0;
   end
@@ -99,8 +109,12 @@ module tb_cpu_trace;
       previous_mem_data <= 32'd0;
       cycles <= 0;
       retire_step <= 0;
+      stall_count <= 0;
+      flush_count <= 0;
     end else begin
       cycles <= cycles + 1;
+      if (event_stall_load) stall_count <= stall_count + 1;
+      if (event_flush) flush_count <= flush_count + 1;
       if (cycles > 20000) $fatal(1, "CPU trace timeout after %0d retires", retire_step);
 
       if (retire_valid) begin
@@ -125,6 +139,15 @@ module tb_cpu_trace;
           $fclose(trace_fd);
           if (previous_mem_data != PASS_VALUE)
             $fatal(1, "firmware FAIL result=%08x", previous_mem_data);
+          $fdisplay(metrics_fd, "%0d,%0d,%0d,%0d",
+              cycles + 1, retire_step + 1,
+              stall_count + (event_stall_load ? 1 : 0),
+              flush_count + (event_flush ? 1 : 0));
+          $fclose(metrics_fd);
+          $display("BENCHMARK: cycles=%0d instret=%0d stall=%0d flush=%0d",
+              cycles + 1, retire_step + 1,
+              stall_count + (event_stall_load ? 1 : 0),
+              flush_count + (event_flush ? 1 : 0));
           $display("RTL TRACE PASS: retires=%0d", retire_step + 1);
           $finish;
         end

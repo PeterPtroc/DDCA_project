@@ -5,7 +5,8 @@ module soc_top #(
     parameter UART_DIVIDER = 868,
     parameter EDGE_MIN_TIMEOUT_TICKS = 10000000,
     parameter EDGE_INITIAL_TIMEOUT_TICKS = 100000000,
-    parameter LIVE_AUTO_TIMEOUT_SAMPLES = 1024
+    parameter LIVE_AUTO_TIMEOUT_SAMPLES = 1024,
+    parameter CPU_PC_NEXT_STYLE = 0
 ) (
     input wire clk,
     input wire rst,
@@ -36,7 +37,7 @@ module soc_top #(
   wire [31:0] mmio_r;
   wire [31:0] test_result;
 
-  rv32_core cpu (
+  rv32_core #(.CPU_PC_NEXT_STYLE(CPU_PC_NEXT_STYLE)) cpu (
       .clk(clk), .rst(rst), .imem_addr(ia), .imem_rdata(id),
       .dmem_valid(dv), .dmem_we(dwe), .dmem_addr(da), .dmem_wdata(dw),
       .dmem_rdata(dr), .retire_valid(rv), .retire_pc(rpc),

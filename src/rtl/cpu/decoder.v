@@ -8,8 +8,6 @@ module decoder (
     output reg         mem_we,
     output reg         mem_re,
     output reg         branch,
-    output reg         branch_ne,
-    output reg         branch_unsigned,
     output reg         jump,
     output reg         jalr,
     output reg         alu_src_imm,
@@ -34,8 +32,6 @@ module decoder (
     mem_we = 0;
     mem_re = 0;
     branch = 0;
-    branch_ne = 0;
-    branch_unsigned = 0;
     jump = 0;
     jalr = 0;
     alu_src_imm = 0;
@@ -106,8 +102,6 @@ module decoder (
         uses_rs2 = 1;
         branch = 1;
         imm_type = IMM_B;
-        branch_ne = (insn[14:12] == 3'b001) || (insn[14:12] == 3'b101) || (insn[14:12] == 3'b111);
-        branch_unsigned = (insn[14:12] == 3'b110) || (insn[14:12] == 3'b111);
         if (!((insn[14:12]==3'b000)||(insn[14:12]==3'b001)||(insn[14:12]==3'b100)||(insn[14:12]==3'b101)||(insn[14:12]==3'b110)||(insn[14:12]==3'b111)))
           valid = 0;
       end

@@ -6,6 +6,14 @@ set build_dir [file join $root build vivado]
 set project_file [file join $build_dir rv32_realtime_scope.xpr]
 set report_dir [file join $build_dir reports]
 set bitstream_file [file join $build_dir rv32_realtime_scope.bit]
+if {[info exists ::env(PC_NEXT_STYLE)]} {
+    set pc_next_style $::env(PC_NEXT_STYLE)
+} else {
+    set pc_next_style 0
+}
+if {$pc_next_style ni {0 1}} {
+    error "PC_NEXT_STYLE must be 0 (PC CE) or 1 (pc_next)"
+}
 
 if {![file exists $project_file]} {
     error "Vivado project not found: run scripts/create_vivado_project.tcl first"
@@ -17,7 +25,8 @@ open_project $project_file
 # Keep the direct flow in the repository root so imem's generated firmware path
 # resolves identically in simulation and synthesis.
 cd $root
-synth_design -top nexys_a7_top -part xc7a100tcsg324-1
+synth_design -top nexys_a7_top -part xc7a100tcsg324-1 \
+    -generic CPU_PC_NEXT_STYLE=$pc_next_style
 puts "SYNTHESIS PASS"
 write_checkpoint -force [file join $build_dir rv32_realtime_scope_synth.dcp]
 opt_design

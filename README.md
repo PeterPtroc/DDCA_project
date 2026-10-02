@@ -15,7 +15,7 @@ JA1/2/3/4/7/8/9/10 <- Eight fixed test signals (always on)
 - 自研五级流水 RV32 CPU，含 forwarding、load-use stall、控制冲刷、`CRC16.B`、retire trace 和性能计数器
 - 单通道 16 点 LED 实时波形，支持 AUTO、NORMAL、SINGLE、FREE、RUN/HOLD
 - 上升沿/下降沿触发与 16 档时基
-- 硬件测量 frequency、period、high、low、duty 和无信号超时
+- Edge Meter 硬件测量 period/high 和无信号超时；CPU 计算 frequency/low，继续提供 duty、UART 和 CAP2 字段
 - 4096×1 深度采集，trigger index 固定为 2048
 - JA 的 8 路数字 I/O 持续输出固定频率/占空比测试波形
 - 八位数码管、RGB 状态灯、按钮、开关和 115200 8N1 UART

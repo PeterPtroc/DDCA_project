@@ -244,14 +244,7 @@ periodic_display:
         lw    t0, 0(s9)
         andi  t1, t0, 1
         beq   t1, x0, display_no_signal
-        lw    t1, 16(s9)
-        sw    t1, 32(s10)
-        lw    t1, 4(s9)
-        sw    t1, 36(s10)
-        lw    t1, 8(s9)
-        sw    t1, 40(s10)
-        lw    t1, 12(s9)
-        sw    t1, 44(s10)
+        call  refresh_measurements
 display_cached:
         call  show_page
         j     periodic_display_done
@@ -277,6 +270,42 @@ display_state_text:
 display_timebase_popup:
         call  show_timebase
 periodic_display_done:
+        lw    ra, 0(sp)
+        addi  sp, sp, 4
+        ret
+
+# Snapshot the two hardware-owned timing values and derive the presentation
+# values in software.  Reading period twice prevents a mixed period/high pair
+# if a rising edge lands between the MMIO loads.  Unchanged samples reuse the
+# cached quotient, keeping the steady-state control loop inexpensive.
+refresh_measurements:
+        addi  sp, sp, -4
+        sw    ra, 0(sp)
+measurement_snapshot:
+        lw    t0, 4(s9)
+        lw    t1, 8(s9)
+        lw    t2, 4(s9)
+        bne   t0, t2, measurement_snapshot
+        beq   t2, x0, refresh_measurements_done
+        lw    t3, 36(s10)
+        bne   t2, t3, measurement_changed
+        lw    t3, 40(s10)
+        beq   t1, t3, refresh_measurements_done
+measurement_changed:
+        sw    t2, 36(s10)      # period_ticks
+        sw    t1, 40(s10)      # high_ticks
+        bltu  t2, t1, measurement_low_zero
+        sub   t3, t2, t1
+        j     measurement_store_low
+measurement_low_zero:
+        addi  t3, x0, 0
+measurement_store_low:
+        sw    t3, 44(s10)      # low_ticks = max(period - high, 0)
+        li    a0, 100000000
+        mv    a1, t2
+        call  divide_u32
+        sw    a0, 32(s10)      # frequency_hz = floor(100 MHz / period)
+refresh_measurements_done:
         lw    ra, 0(sp)
         addi  sp, sp, 4
         ret
@@ -639,6 +668,7 @@ status_newline:
 send_measurement:
         addi  sp, sp, -4
         sw    ra, 0(sp)
+        call  refresh_measurements
         addi  a0, x0, 77       # MEA2
         call  uart_putc
         addi  a0, x0, 69
@@ -649,13 +679,13 @@ send_measurement:
         call  uart_putc
         lw    a0, 0(s9)
         call  send_word
-        lw    a0, 16(s9)
+        lw    a0, 32(s10)
         call  send_word
-        lw    a0, 4(s9)
+        lw    a0, 36(s10)
         call  send_word
-        lw    a0, 8(s9)
+        lw    a0, 40(s10)
         call  send_word
-        lw    a0, 12(s9)
+        lw    a0, 44(s10)
         call  send_word
         lw    ra, 0(sp)
         addi  sp, sp, 4
@@ -709,6 +739,7 @@ send_word:
 send_dump:
         addi  sp, sp, -4
         sw    ra, 0(sp)
+        call  refresh_measurements
         lw    t0, 4(s4)
         andi  t0, t0, 4
         bne   t0, x0, dump_ready
@@ -743,11 +774,11 @@ dump_ready:
         call  send_word_crc
         lw    a0, 24(s4)
         call  send_half_crc
-        lw    a0, 4(s9)
+        lw    a0, 36(s10)
         call  send_word_crc
-        lw    a0, 8(s9)
+        lw    a0, 40(s10)
         call  send_word_crc
-        lw    a0, 16(s9)
+        lw    a0, 32(s10)
         call  send_word_crc
 
         addi  t2, x0, 0        # packed byte index
@@ -872,48 +903,39 @@ multiply_done:
 
 # Unsigned divide by 100: a0=quotient, a1=remainder.
 divide100:
-        mv    t3, a0
-        addi  t0, x0, 0
-        addi  t1, x0, 0
-        addi  t2, x0, 32
-divide100_loop:
-        slli  t1, t1, 1
-        srli  t4, t3, 31
-        or    t1, t1, t4
-        slli  t3, t3, 1
-        slli  t0, t0, 1
-        addi  t4, x0, 100
-        bltu  t1, t4, divide100_next
-        sub   t1, t1, t4
-        ori   t0, t0, 1
-divide100_next:
-        addi  t2, t2, -1
-        bne   t2, x0, divide100_loop
-        mv    a0, t0
-        mv    a1, t1
-        ret
+        addi  a1, x0, 100
+        j     divide_u32
 
 # Unsigned divide by 10: a0=quotient, a1=remainder.
 divide10:
+        addi  a1, x0, 10
+        j     divide_u32
+
+# Unsigned restoring divide: a0 / a1 -> quotient in a0, remainder in a1.
+divide_u32:
+        beq   a1, x0, divide_u32_zero
         mv    t3, a0
         addi  t0, x0, 0
         addi  t1, x0, 0
         addi  t2, x0, 32
-divide10_loop:
+divide_u32_loop:
         slli  t1, t1, 1
         srli  t4, t3, 31
         or    t1, t1, t4
         slli  t3, t3, 1
         slli  t0, t0, 1
-        addi  t4, x0, 10
-        bltu  t1, t4, divide10_next
-        sub   t1, t1, t4
+        bltu  t1, a1, divide_u32_next
+        sub   t1, t1, a1
         ori   t0, t0, 1
-divide10_next:
+divide_u32_next:
         addi  t2, t2, -1
-        bne   t2, x0, divide10_loop
+        bne   t2, x0, divide_u32_loop
         mv    a0, t0
         mv    a1, t1
+        ret
+divide_u32_zero:
+        addi  a0, x0, 0
+        addi  a1, x0, 0
         ret
 
 timebase_div:

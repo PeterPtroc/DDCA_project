@@ -59,7 +59,7 @@ module mmio_decoder #(
   wire [12:0] capture_count;
   wire [11:0] capture_trigger_index;
   wire edge_valid, signal_present, edge_averaging;
-  wire [31:0] edge_period, edge_high, edge_low, edge_frequency, edge_age;
+  wire [31:0] edge_period, edge_high, edge_age;
   wire [15:0] live_frame;
   wire live_frame_valid, live_trigger_event, live_waiting, live_running;
   wire live_forced, live_single_done;
@@ -125,8 +125,7 @@ module mmio_decoder #(
       .we(valid && we && edge_sel), .off(addr[4:0]), .wdata(wdata),
       .rdata(edge_data), .valid(edge_valid), .signal_present(signal_present),
       .averaging(edge_averaging), .period_ticks(edge_period),
-      .high_ticks(edge_high), .low_ticks(edge_low), .frequency_hz(edge_frequency),
-      .edge_age(edge_age)
+      .high_ticks(edge_high), .edge_age(edge_age)
   );
   live_scope #(.AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES)) live (
       .clk(clk), .rst(rst), .scope_signal(scope_signal),

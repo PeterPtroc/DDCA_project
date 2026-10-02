@@ -113,21 +113,31 @@ module tb_soc_realtime_scope;
     wait_clocks(10);
     rst = 1'b0;
     wait_clocks(120000);
+    // Age the display deadline so firmware snapshots period/high and derives
+    // frequency/low without simulating the full 50 ms UI interval.
+    dut.dm.mem[4] = dut.bus.timer.timer[31:0] - 32'd5000000;
+    wait_clocks(8000);
 
     // Selectable simulation jumper: JA9 -> JB1.
-    if (!dut.bus.edge_valid || dut.bus.edge_frequency !== 32'd100000 ||
-        dut.bus.edge_period !== 32'd1000 || dut.bus.edge_high !== 32'd800)
-      $fatal(1, "JA9 measurement mismatch valid=%b f=%0d p=%0d h=%0d",
-          dut.bus.edge_valid, dut.bus.edge_frequency,
-          dut.bus.edge_period, dut.bus.edge_high);
+    if (!dut.bus.edge_valid || dut.bus.edge_period !== 32'd1000 ||
+        dut.bus.edge_high !== 32'd800 || dut.dm.mem[8] !== 32'd100000 ||
+        dut.dm.mem[9] !== 32'd1000 || dut.dm.mem[10] !== 32'd800 ||
+        dut.dm.mem[11] !== 32'd200)
+      $fatal(1, "JA9 measurement mismatch valid=%b f=%0d p=%0d h=%0d l=%0d",
+          dut.bus.edge_valid, dut.dm.mem[8], dut.dm.mem[9],
+          dut.dm.mem[10], dut.dm.mem[11]);
 
     // Move the simulated Dupont jumper to JA4 and verify its fixed waveform.
     test_select = 3'd3;
     wait_clocks(30000);
-    if (!dut.bus.edge_valid || dut.bus.edge_frequency !== 32'd14242 ||
-        dut.bus.edge_period !== 32'd7021 || dut.bus.edge_high !== 32'd3511)
-      $fatal(1, "JA4 measurement mismatch f=%0d p=%0d h=%0d",
-          dut.bus.edge_frequency, dut.bus.edge_period, dut.bus.edge_high);
+    dut.dm.mem[4] = dut.bus.timer.timer[31:0] - 32'd5000000;
+    wait_clocks(8000);
+    if (!dut.bus.edge_valid || dut.bus.edge_period !== 32'd7021 ||
+        dut.bus.edge_high !== 32'd3511 || dut.dm.mem[8] !== 32'd14242 ||
+        dut.dm.mem[9] !== 32'd7021 || dut.dm.mem[10] !== 32'd3511 ||
+        dut.dm.mem[11] !== 32'd3510)
+      $fatal(1, "JA4 measurement mismatch f=%0d p=%0d h=%0d l=%0d",
+          dut.dm.mem[8], dut.dm.mem[9], dut.dm.mem[10], dut.dm.mem[11]);
     test_select = 3'd6;
     wait_clocks(5000);
 
@@ -308,7 +318,7 @@ module tb_soc_realtime_scope;
           dut.bus.display.display_data1, dut.bus.display.display_data0);
 
     $display("SOC REALTIME SCOPE PASS: frames=%0d frequency=%0d dump_crc=%04x",
-        dut.bus.live_frame_counter, dut.bus.edge_frequency, crc);
+        dut.bus.live_frame_counter, dut.dm.mem[8], crc);
     $finish;
   end
 endmodule

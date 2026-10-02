@@ -1,5 +1,7 @@
 `default_nettype none
-module rv32_core (
+module rv32_core #(
+    parameter CPU_PC_NEXT_STYLE = 0
+) (
     input wire clk,
     input wire rst,
     output wire [31:0] imem_addr,
@@ -38,8 +40,6 @@ module rv32_core (
       idex_mem_we,
       idex_mem_re,
       idex_branch,
-      idex_branch_ne,
-      idex_branch_unsigned,
       idex_jump,
       idex_jalr,
       idex_alu_src_imm,
@@ -54,7 +54,7 @@ module rv32_core (
   reg [31:0] memwb_pc, memwb_insn, memwb_alu, memwb_mem_data;
   reg [4:0] memwb_rd;
   reg memwb_reg_we, memwb_wb_mem, memwb_is_crc;
-  wire dec_valid,dec_uses_rs1,dec_uses_rs2,dec_reg_we,dec_mem_we,dec_mem_re,dec_branch,dec_branch_ne,dec_branch_unsigned,dec_jump,dec_jalr,dec_alu_src_imm,dec_wb_mem,dec_is_crc;
+  wire dec_valid,dec_uses_rs1,dec_uses_rs2,dec_reg_we,dec_mem_we,dec_mem_re,dec_branch,dec_jump,dec_jalr,dec_alu_src_imm,dec_wb_mem,dec_is_crc;
   wire [4:0] dec_alu_op;
   wire [2:0] dec_imm_type;
   decoder dec (
@@ -66,8 +66,6 @@ module rv32_core (
       .mem_we(dec_mem_we),
       .mem_re(dec_mem_re),
       .branch(dec_branch),
-      .branch_ne(dec_branch_ne),
-      .branch_unsigned(dec_branch_unsigned),
       .jump(dec_jump),
       .jalr(dec_jalr),
       .alu_src_imm(dec_alu_src_imm),
@@ -143,7 +141,6 @@ module rv32_core (
       .op(idex_alu_op),
       .y (alu_y)
   );
-  wire branch_cond = idex_branch && (idex_branch_ne ? (idex_branch_unsigned ? (ex_a!=ex_b_reg) : (ex_a!=ex_b_reg)) : (ex_a==ex_b_reg));
   wire [2:0] branch_f3 = idex_insn[14:12];
   wire branch_cmp = (branch_f3==3'b000) ? (ex_a==ex_b_reg) : (branch_f3==3'b001) ? (ex_a!=ex_b_reg) : (branch_f3==3'b100) ? ($signed(
       ex_a
@@ -154,8 +151,16 @@ module rv32_core (
   ) >= $signed(
       ex_b_reg
   )) : (branch_f3 == 3'b110) ? (ex_a < ex_b_reg) : (ex_a >= ex_b_reg);
-  wire redirect = idex_valid && ((idex_branch && branch_cmp) || idex_jump);
+  // JAL has no register dependency and its target is available in ID.  Take
+  // that redirect one stage early; JALR and conditional branches still wait
+  // for EX because they need forwarded operand values or a comparison.
+  wire jal_id_redirect = ifid_valid && dec_valid && dec_jump && !dec_jalr && !load_stall;
+  wire [31:0] jal_id_target = ifid_pc + dec_imm;
+  wire redirect = idex_valid && ((idex_branch && branch_cmp) ||
+      (idex_jump && idex_jalr));
   wire [31:0] redirect_target = idex_jalr ? ((ex_a + idex_imm) & 32'hfffffffe) : (idex_pc + idex_imm);
+  wire [31:0] pc_next = redirect ? redirect_target :
+      jal_id_redirect ? jal_id_target : load_stall ? pc : pc + 32'd4;
   wire [31:0] ex_result = idex_is_crc ? {16'd0,crc_next} : (idex_jump ? (idex_pc+32'd4) : (idex_alu_op==ALU_ADD && idex_insn[6:0]==7'b0010111 ? idex_pc+idex_imm : alu_y));
   assign imem_addr = pc;
   assign dmem_valid = exmem_valid && (exmem_mem_we || exmem_mem_re);
@@ -171,7 +176,7 @@ module rv32_core (
   assign event_stall_load = load_stall;
   assign event_fwd_ex_count = {1'b0, (fwd_a == 1)} + {1'b0, (fwd_b == 1)};
   assign event_fwd_wb_count = {1'b0, (fwd_a == 2)} + {1'b0, (fwd_b == 2)};
-  assign event_flush = redirect;
+  assign event_flush = redirect || jal_id_redirect;
   assign event_branch = idex_valid && idex_branch;
   assign event_branch_taken = idex_valid && idex_branch && branch_cmp;
   assign event_custom_crc = memwb_valid && memwb_is_crc;
@@ -183,11 +188,21 @@ module rv32_core (
       exmem_valid <= 0;
       memwb_valid <= 0;
     end else begin
-      if (redirect) pc <= redirect_target;
-      else if (!load_stall) pc <= pc + 4;
+      if (CPU_PC_NEXT_STYLE != 0) begin
+        pc <= pc_next;
+      end else begin
+        if (redirect) pc <= redirect_target;
+        else if (jal_id_redirect) pc <= jal_id_target;
+        else if (!load_stall) pc <= pc + 4;
+      end
       if (redirect) begin
         ifid_valid <= 0;
         idex_valid <= 0;
+      end else if (jal_id_redirect) begin
+        // Preserve the JAL itself for EX/WB so its link register retires;
+        // discard only the sequential instruction currently in IF.
+        ifid_valid <= 0;
+        idex_valid <= ifid_valid && dec_valid;
       end else if (load_stall) begin
         idex_valid <= 0;
       end else begin
@@ -214,8 +229,6 @@ module rv32_core (
         idex_mem_we <= dec_mem_we;
         idex_mem_re <= dec_mem_re;
         idex_branch <= dec_branch;
-        idex_branch_ne <= dec_branch_ne;
-        idex_branch_unsigned <= dec_branch_unsigned;
         idex_jump <= dec_jump;
         idex_jalr <= dec_jalr;
         idex_alu_src_imm <= dec_alu_src_imm;

@@ -1,5 +1,7 @@
 `default_nettype none
-module nexys_a7_top (
+module nexys_a7_top #(
+    parameter CPU_PC_NEXT_STYLE = 0
+) (
     input wire clk100,
     input wire reset_n,
     input wire [15:0] sw,
@@ -28,7 +30,7 @@ module nexys_a7_top (
   end
   wire reset = ~reset_sync[1];
 
-  soc_top soc (
+  soc_top #(.CPU_PC_NEXT_STYLE(CPU_PC_NEXT_STYLE)) soc (
       .clk(clk100), .rst(reset), .sw(sw), .btn(btn),
       .capture_in({7'd0, jb1}),
       .uart_rx(uart_rx), .led(led), .uart_tx(uart_tx), .seg_an(seg_an),

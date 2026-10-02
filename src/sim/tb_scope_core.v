@@ -68,23 +68,19 @@ module tb_scope_core;
   wire [31:0] edge_rdata;
   wire [31:0] edge_period;
   wire [31:0] edge_high;
-  wire [31:0] edge_low;
-  wire [31:0] edge_frequency;
   wire [31:0] edge_age;
   wire edge_valid;
   wire edge_present;
   wire edge_averaging;
 
   edge_meter_scope #(
-      .CLOCK_HZ(1000), .MIN_TIMEOUT_TICKS(100),
-      .INITIAL_TIMEOUT_TICKS(40)
+      .MIN_TIMEOUT_TICKS(100), .INITIAL_TIMEOUT_TICKS(40)
   ) edge_dut (
       .clk(clk), .rst(edge_rst), .sample(edge_sample), .we(edge_we),
       .off(edge_off), .wdata(edge_wdata), .rdata(edge_rdata),
       .valid(edge_valid), .signal_present(edge_present),
       .averaging(edge_averaging), .period_ticks(edge_period),
-      .high_ticks(edge_high), .low_ticks(edge_low),
-      .frequency_hz(edge_frequency), .edge_age(edge_age)
+      .high_ticks(edge_high), .edge_age(edge_age)
   );
 
   task edge_level;
@@ -243,7 +239,8 @@ module tb_scope_core;
     check_fixed_signal(6, 1000, 800);
     check_fixed_signal(7, 500, 450);
 
-    // Edge meter: period/high/low/frequency plus no-signal timeout.
+    // Edge meter hardware: period/high plus no-signal timeout. Firmware
+    // derives low/frequency in the SoC integration test.
     edge_level(1'b0, 3);
     edge_level(1'b1, 4);
     edge_level(1'b0, 6);
@@ -252,11 +249,9 @@ module tb_scope_core;
     clocks(40);
     #1;
     if (!edge_valid || !edge_present || edge_period !== 32'd10 ||
-        edge_high !== 32'd4 || edge_low !== 32'd6 ||
-        edge_frequency !== 32'd100)
-      $fatal(1, "edge meter mismatch valid=%b present=%b p=%0d h=%0d l=%0d f=%0d",
-          edge_valid, edge_present, edge_period, edge_high, edge_low,
-          edge_frequency);
+        edge_high !== 32'd4)
+      $fatal(1, "edge meter mismatch valid=%b present=%b p=%0d h=%0d",
+          edge_valid, edge_present, edge_period, edge_high);
     clocks(120);
     if (edge_valid || edge_present)
       $fatal(1, "edge meter no-signal timeout failed");
