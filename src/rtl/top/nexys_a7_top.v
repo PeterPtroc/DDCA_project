@@ -27,20 +27,16 @@ module nexys_a7_top (
     else reset_sync <= {reset_sync[0], 1'b1};
   end
   wire reset = ~reset_sync[1];
-  wire pwm_out;
-  wire [31:0] test_result;
-  wire capture_done;
+  wire generator_out;
 
   soc_top soc (
       .clk(clk100), .rst(reset), .sw(sw), .btn(btn),
       .capture_in({7'd0, jb1}),
-      .uart_rx(uart_rx), .led(led), .uart_tx(uart_tx), .pwm_out(pwm_out),
-      .pattern_out(), .pattern_enabled(),
-      .test_result(test_result), .capture_done(capture_done), .seg_an(seg_an),
+      .uart_rx(uart_rx), .led(led), .uart_tx(uart_tx),
+      .generator_out(generator_out), .seg_an(seg_an),
       .seg(seg), .seg_dp(seg_dp), .rgb0_r(rgb0_r), .rgb0_g(rgb0_g), .rgb0_b(rgb0_b),
-      .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b),
-      .vga_r(), .vga_g(), .vga_b(), .vga_hs(), .vga_vs()
+      .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
-  assign ja1 = pwm_out;
+  assign ja1 = generator_out;
 endmodule
 `default_nettype wire

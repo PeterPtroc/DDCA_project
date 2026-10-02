@@ -9,11 +9,7 @@ $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
 
 function Invoke-Checked {
-    param(
-        [string]$Command,
-        [string[]]$Arguments
-    )
-
+    param([string]$Command, [string[]]$Arguments)
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "$Command failed with exit code $LASTEXITCODE"
@@ -26,22 +22,12 @@ function Find-VivadoBin {
     }
 
     $xvlog = Get-Command xvlog.bat -ErrorAction SilentlyContinue
-    if ($xvlog) {
-        return Split-Path -Parent $xvlog.Source
-    }
+    if ($xvlog) { return Split-Path -Parent $xvlog.Source }
 
-    $roots = @(
-        "D:\xilinx\Vivado",
-        "C:\Xilinx\Vivado",
-        "C:\AMD\Vivado"
-    )
-    foreach ($vivadoRoot in $roots) {
-        if (-not (Test-Path -LiteralPath $vivadoRoot)) {
-            continue
-        }
-        $versions = Get-ChildItem -LiteralPath $vivadoRoot -Directory |
-            Sort-Object Name -Descending
-        foreach ($version in $versions) {
+    foreach ($vivadoRoot in @("D:\xilinx\Vivado", "C:\Xilinx\Vivado", "C:\AMD\Vivado")) {
+        if (-not (Test-Path -LiteralPath $vivadoRoot)) { continue }
+        foreach ($version in Get-ChildItem -LiteralPath $vivadoRoot -Directory |
+            Sort-Object Name -Descending) {
             $bin = Join-Path $version.FullName "bin"
             if (Test-Path -LiteralPath (Join-Path $bin "xvlog.bat")) {
                 return $bin
@@ -53,11 +39,7 @@ function Find-VivadoBin {
 }
 
 function Invoke-XSimTest {
-    param(
-        [string]$Top,
-        [string]$Testbench,
-        [string]$ExpectedMarker
-    )
+    param([string]$Top, [string]$Testbench, [string]$ExpectedMarker)
 
     $snapshot = "${Top}_sim"
     $sources = @($script:RtlSources) + (Resolve-Path -LiteralPath $Testbench).Path
@@ -67,9 +49,7 @@ function Invoke-XSimTest {
     $output = & $script:Xsim $snapshot "--nolog" "-runall" 2>&1
     $exitCode = $LASTEXITCODE
     $output | ForEach-Object { Write-Host $_ }
-    if ($exitCode -ne 0) {
-        throw "XSim test $Top failed with exit code $exitCode"
-    }
+    if ($exitCode -ne 0) { throw "XSim test $Top failed with exit code $exitCode" }
     if (($output -join "`n") -notmatch [regex]::Escape($ExpectedMarker)) {
         throw "XSim test $Top did not emit: $ExpectedMarker"
     }
@@ -86,18 +66,13 @@ function Invoke-DifferentialTests {
     foreach ($name in @("isa_test", "hazard_test", "crc_test")) {
         $referenceTrace = Join-Path "build\trace" "$name.reference.csv"
         $testFlag = $name.ToUpperInvariant()
-
         $output = & $script:Xsim $snapshot "--nolog" "--runall" `
             "--testplusarg" $testFlag 2>&1
         $exitCode = $LASTEXITCODE
         $output | ForEach-Object { Write-Host $_ }
-        if ($exitCode -ne 0) {
-            throw "RTL trace simulation for $name failed with exit code $exitCode"
+        if ($exitCode -ne 0 -or ($output -join "`n") -notmatch "RTL TRACE PASS") {
+            throw "RTL trace simulation for $name failed"
         }
-        if (($output -join "`n") -notmatch "RTL TRACE PASS") {
-            throw "RTL trace simulation for $name did not report PASS"
-        }
-
         Invoke-Checked $script:Python @(
             "sw\tools\rv32_ref.py", "build\hex\$name.hex", $referenceTrace
         )
@@ -114,35 +89,49 @@ $Xvlog = Join-Path $VivadoBin "xvlog.bat"
 $Xelab = Join-Path $VivadoBin "xelab.bat"
 $Xsim = Join-Path $VivadoBin "xsim.bat"
 
-Write-Host "Python: $Python"
-Write-Host "Vivado bin: $VivadoBin"
-
 New-Item -ItemType Directory -Path "build\hex" -Force | Out-Null
-foreach ($firmware in Get-ChildItem -LiteralPath "sw\firmware" -Filter "*.S") {
-    $output = Join-Path "build\hex" ($firmware.BaseName + ".hex")
-    Invoke-Checked $Python @("sw\tools\rv32asm.py", $firmware.FullName, $output)
+foreach ($name in @("scope", "isa_test", "hazard_test", "crc_test")) {
+    Invoke-Checked $Python @(
+        "sw\tools\rv32asm.py", "sw\firmware\$name.S", "build\hex\$name.hex"
+    )
 }
 
 Invoke-Checked $Python @("-m", "unittest", "discover", "-s", "sw\tools", "-p", "test_*.py")
 Invoke-Checked $Python @("-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py")
 
 $RtlSources = @(
-    Get-ChildItem -LiteralPath "src\rtl" -Filter "*.v" -Recurse |
-        Sort-Object FullName |
-        ForEach-Object FullName
-)
+    "src\rtl\bus\mmio_decoder.v",
+    "src\rtl\cpu\alu.v",
+    "src\rtl\cpu\crc16_unit.v",
+    "src\rtl\cpu\decoder.v",
+    "src\rtl\cpu\forwarding_unit.v",
+    "src\rtl\cpu\hazard_unit.v",
+    "src\rtl\cpu\imm_gen.v",
+    "src\rtl\cpu\regfile.v",
+    "src\rtl\cpu\rv32_core.v",
+    "src\rtl\memory\dmem.v",
+    "src\rtl\memory\imem.v",
+    "src\rtl\peripheral\button_debounce.v",
+    "src\rtl\peripheral\button_mmio.v",
+    "src\rtl\peripheral\edge_meter_scope.v",
+    "src\rtl\peripheral\gpio_mmio.v",
+    "src\rtl\peripheral\input_sync.v",
+    "src\rtl\peripheral\live_scope.v",
+    "src\rtl\peripheral\perf_counter.v",
+    "src\rtl\peripheral\rgb_status.v",
+    "src\rtl\peripheral\scope_capture.v",
+    "src\rtl\peripheral\sevenseg.v",
+    "src\rtl\peripheral\signal_generator.v",
+    "src\rtl\peripheral\timer_mmio.v",
+    "src\rtl\peripheral\uart_mmio.v",
+    "src\rtl\peripheral\uart_rx.v",
+    "src\rtl\peripheral\uart_tx.v",
+    "src\rtl\top\nexys_a7_top.v",
+    "src\rtl\top\soc_top.v"
+) | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
 
 Invoke-DifferentialTests
-Invoke-XSimTest "tb_mmio_map" "src\sim\tb_mmio_map.v" "MMIO MAP PASS"
-Invoke-XSimTest "tb_analyzer_peripherals" "src\sim\tb_analyzer_peripherals.v" "ANALYZER PERIPHERALS PASS"
-Invoke-XSimTest "tb_logic_capture_v1" "src\sim\tb_logic_capture_v1.v" "LOGIC CAPTURE V1 PASS"
-Invoke-XSimTest "tb_live_scope" "src\sim\tb_live_scope.v" "LIVE SCOPE PASS"
-Invoke-XSimTest "tb_edge_meter_scope" "src\sim\tb_edge_meter_scope.v" "EDGE METER SCOPE PASS"
-Invoke-XSimTest "tb_signal_generator" "src\sim\tb_signal_generator.v" "SIGNAL GENERATOR PASS"
-Invoke-XSimTest "tb_scope_capture" "src\sim\tb_scope_capture.v" "SCOPE CAPTURE PASS"
-Invoke-XSimTest "tb_scope_ui" "src\sim\tb_scope_ui.v" "SCOPE UI PASS"
-Invoke-XSimTest "tb_soc_mvp" "src\sim\tb_soc_mvp.v" "MVP PASS"
-Invoke-XSimTest "tb_soc_analyzer" "src\sim\tb_soc_analyzer.v" "SOC ANALYZER PASS"
+Invoke-XSimTest "tb_scope_core" "src\sim\tb_scope_core.v" "SCOPE CORE PASS"
 Invoke-XSimTest "tb_soc_realtime_scope" "src\sim\tb_soc_realtime_scope.v" "SOC REALTIME SCOPE PASS"
 
-Write-Host "WINDOWS TEST PASS"
+Write-Host "COURSE DESIGN TEST PASS"

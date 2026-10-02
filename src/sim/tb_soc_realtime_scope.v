@@ -33,12 +33,11 @@ module tb_soc_realtime_scope;
   ) dut (
       .clk(clk), .rst(rst), .sw(sw), .btn(btn), .capture_in(capture_in),
       .uart_rx(uart_rx_line), .led(led), .uart_tx(uart_tx_line),
-      .pwm_out(generator_out), .pattern_out(), .pattern_enabled(),
-      .test_result(), .capture_done(capture_done), .seg_an(), .seg(), .seg_dp(),
+      .generator_out(generator_out), .seg_an(), .seg(), .seg_dp(),
       .rgb0_r(rgb0_r), .rgb0_g(rgb0_g), .rgb0_b(rgb0_b),
-      .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b),
-      .vga_r(), .vga_g(), .vga_b(), .vga_hs(), .vga_vs()
+      .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
+  assign capture_done = dut.bus.capture_done;
 
   uart_rx #(.DIVIDER(16)) monitor (
       .clk(clk), .rst(rst), .rx(uart_tx_line),

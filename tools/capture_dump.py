@@ -170,7 +170,7 @@ def main() -> None:
     parser.add_argument(
         "--sample-div",
         type=int,
-        help="required only for legacy binary/CSV inputs; CAP2 embeds this value",
+        help="required only for raw binary/CSV inputs; CAP2 embeds this value",
     )
     parser.add_argument(
         "--csv",

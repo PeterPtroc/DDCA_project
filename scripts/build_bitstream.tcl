@@ -18,6 +18,7 @@ open_project $project_file
 # resolves identically in simulation and synthesis.
 cd $root
 synth_design -top nexys_a7_top -part xc7a100tcsg324-1
+puts "SYNTHESIS PASS"
 write_checkpoint -force [file join $build_dir rv32_realtime_scope_synth.dcp]
 opt_design
 place_design -directive ExtraPostPlacementOpt
@@ -71,6 +72,8 @@ foreach violation [get_drc_violations -quiet] {
 if {[llength $blocking_drc] != 0} {
     error "Blocking DRC violations: $blocking_drc"
 }
+puts "IMPLEMENTATION PASS"
+puts "DRC PASS"
 
 # Reaching bitgen now proves routing, setup/hold timing, and blocking DRCs all
 # passed; it does not claim that warning-level findings or hardware tests passed.

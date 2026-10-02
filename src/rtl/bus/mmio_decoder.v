@@ -4,8 +4,7 @@ module mmio_decoder #(
     parameter UART_DIVIDER = 868,
     parameter EDGE_MIN_TIMEOUT_TICKS = 10000000,
     parameter EDGE_INITIAL_TIMEOUT_TICKS = 100000000,
-    parameter LIVE_AUTO_TIMEOUT_SAMPLES = 1024,
-    parameter ENABLE_LEGACY_PATTERN = 0
+    parameter LIVE_AUTO_TIMEOUT_SAMPLES = 1024
 ) (
     input wire clk,
     input wire rst,
@@ -17,7 +16,6 @@ module mmio_decoder #(
     input wire [4:0] btn,
     input wire [7:0] capture_in,
     input wire uart_rx_i,
-    input wire [11:0] display_index,
     input wire retire,
     input wire stall,
     input wire [1:0] fwd_ex,
@@ -30,11 +28,7 @@ module mmio_decoder #(
     output wire [15:0] led,
     output wire [31:0] test_result,
     output wire uart_tx,
-    output wire pwm_out,
-    output wire [7:0] pattern_out,
-    output wire pattern_enabled,
-    output wire [7:0] capture_sample,
-    output wire [7:0] display_sample,
+    output wire generator_out,
     output wire capture_armed,
     output wire capture_triggered,
     output wire capture_done,
@@ -51,18 +45,17 @@ module mmio_decoder #(
   wire gpio_sel = addr[31:12] == 20'h40000;
   wire uart_sel = addr[31:12] == 20'h40001;
   wire timer_sel = addr[31:12] == 20'h40002;
-  wire pwm_sel = addr[31:12] == 20'h40003;
+  wire generator_sel = addr[31:12] == 20'h40003;
   wire cap_sel = addr[31:12] == 20'h40004;
   wire perf_sel = addr[31:12] == 20'h40006;
   wire button_sel = addr[31:12] == 20'h40007;
   wire display_sel = addr[31:12] == 20'h40008;
   wire edge_sel = addr[31:12] == 20'h40009;
-  wire pattern_sel = ENABLE_LEGACY_PATTERN && addr[31:12] == 20'h4000a;
   wire live_sel = addr[31:12] == 20'h40005;
   wire win_sel = addr[31:14] == 18'h10004;
 
-  wire [31:0] gdata, udata, tdata, pdata, cdata, perfdata;
-  wire [31:0] button_data, display_data, edge_data, pattern_data, live_data;
+  wire [31:0] gdata, udata, tdata, generator_data, cdata, perfdata;
+  wire [31:0] button_data, display_data, edge_data, live_data;
   wire [15:0] gpio_led;
   wire uart_ready, uart_rx_valid, uart_activity;
   wire [12:0] capture_count;
@@ -78,12 +71,8 @@ module mmio_decoder #(
   wire [31:0] live_sample_div;
   wire live_edge;
   wire scope_signal;
-  wire [7:0] scope_sample_bus;
-  wire [7:0] deep_display_sample;
-  wire generator_enabled, generator_out;
+  wire generator_enabled;
   wire [31:0] generator_period, generator_high;
-  wire [7:0] legacy_pattern_out;
-  wire legacy_pattern_enabled;
   wire [15:0] switch_state;
   reg live_control_enable_reg;
   reg [1:0] live_mode_reg;
@@ -95,8 +84,6 @@ module mmio_decoder #(
   input_sync #(.WIDTH(1)) scope_sync (
       .clk(clk), .rst(rst), .async_in(capture_in[0]), .sync_out(scope_signal)
   );
-  assign scope_sample_bus = {7'd0, scope_signal};
-
   gpio_mmio gpio (
       .clk(clk), .rst(rst), .we(valid && we && gpio_sel),
       .off(addr[3:0]), .wdata(wdata), .sw(sw), .btn(btn),
@@ -110,8 +97,8 @@ module mmio_decoder #(
   );
   timer_mmio timer (.clk(clk), .rst(rst), .off(addr[2:0]), .rdata(tdata));
   signal_generator generator (
-      .clk(clk), .rst(rst), .we(valid && we && pwm_sel),
-      .off(addr[4:0]), .wdata(wdata), .rdata(pdata),
+      .clk(clk), .rst(rst), .we(valid && we && generator_sel),
+      .off(addr[4:0]), .wdata(wdata), .rdata(generator_data),
       .enabled(generator_enabled), .signal_out(generator_out),
       .period_ticks(generator_period), .high_ticks(generator_high)
   );
@@ -119,7 +106,7 @@ module mmio_decoder #(
       .clk(clk), .rst(rst), .scope_signal(scope_signal),
       .we(valid && we && cap_sel), .off(addr[5:0]), .wdata(wdata),
       .window_sel(win_sel), .window_index(addr[13:2]),
-      .rdata(cdata), .display_sample(deep_display_sample),
+      .rdata(cdata), .display_sample(),
       .armed(capture_armed),
       .triggered(capture_triggered), .done(capture_done), .count(capture_count),
       .trigger_index(capture_trigger_index)
@@ -161,31 +148,12 @@ module mmio_decoder #(
       .running(live_running), .auto_forced(live_forced),
       .single_done(live_single_done), .frame_counter(live_frame_counter)
   );
-  generate
-    if (ENABLE_LEGACY_PATTERN) begin : legacy_pattern_compat
-      pattern_generator legacy_pattern (
-          .clk(clk), .rst(rst), .we(valid && we && pattern_sel),
-          .off(addr[4:0]), .wdata(wdata), .rdata(pattern_data),
-          .enabled(legacy_pattern_enabled), .pattern_out(legacy_pattern_out)
-      );
-    end else begin : no_legacy_pattern
-      assign pattern_data = 32'd0;
-      assign legacy_pattern_enabled = 1'b0;
-      assign legacy_pattern_out = 8'd0;
-    end
-  endgenerate
-
   wire live_control_enable;
   assign live_control_enable = live_control_enable_reg;
   assign live_hold = live_hold_reg;
   assign live_mode = live_mode_reg;
   assign live_edge = live_edge_reg;
   assign live_sample_div = live_sample_div_reg;
-  assign capture_sample = scope_sample_bus;
-  assign display_sample = deep_display_sample;
-  assign pwm_out = generator_out;
-  assign pattern_enabled = legacy_pattern_enabled;
-  assign pattern_out = legacy_pattern_out;
   assign led = live_frame;
 
   always @(posedge clk) begin
@@ -240,9 +208,9 @@ module mmio_decoder #(
   );
 
   assign rdata = gpio_sel ? gdata : uart_sel ? udata : timer_sel ? tdata :
-                 pwm_sel ? pdata : (cap_sel || win_sel) ? cdata :
+                 generator_sel ? generator_data : (cap_sel || win_sel) ? cdata :
                  perf_sel ? perfdata : button_sel ? button_data :
                  display_sel ? display_data : edge_sel ? edge_data :
-                 pattern_sel ? pattern_data : live_sel ? live_data : 32'd0;
+                 live_sel ? live_data : 32'd0;
 endmodule
 `default_nettype wire

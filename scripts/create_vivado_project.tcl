@@ -6,9 +6,7 @@ cd $root
 set build_dir [file join $root build vivado]
 file mkdir $build_dir
 create_project rv32_realtime_scope $build_dir -part xc7a100tcsg324-1 -force
-# Keep the release source set explicit. Legacy multichannel capture, pattern,
-# duplicate PWM, and VGA modules remain in the repository for regression tests
-# and the v1.0 tag, but are not production-project inputs.
+# The course-design project deliberately lists every production RTL source.
 set production_sources [list \
     [file join $root src rtl bus mmio_decoder.v] \
     [file join $root src rtl cpu alu.v] \

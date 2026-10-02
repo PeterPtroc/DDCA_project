@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small two-pass assembler for the RV32I/custom subset used by the MVP."""
+"""Small two-pass assembler for the project's RV32I/custom instruction subset."""
 
 import argparse
 import re

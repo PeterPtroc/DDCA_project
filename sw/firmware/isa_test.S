@@ -1,4 +1,4 @@
-# Directed architectural test for every instruction implemented by the MVP.
+# Directed architectural test for every implemented CPU instruction.
 # s11 holds the failing case number; PASS is published only after all groups.
 
         # Arithmetic boundaries and LUI.
