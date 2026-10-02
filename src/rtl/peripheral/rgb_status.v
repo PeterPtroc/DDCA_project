@@ -7,8 +7,6 @@ module rgb_status (
     input wire error,
     input wire signal_present,
     input wire waiting_trigger,
-    input wire selftest,
-    input wire selftest_pass,
     output reg rgb0_r,
     output reg rgb0_g,
     output reg rgb0_b,
@@ -24,10 +22,7 @@ module rgb_status (
     else if (run) rgb0_g = 1'b1;
 
     rgb1_r = 1'b0; rgb1_g = 1'b0; rgb1_b = 1'b0;
-    if (selftest) begin
-      if (selftest_pass) rgb1_g = 1'b1;
-      else rgb1_r = 1'b1;
-    end else if (!signal_present) rgb1_r = 1'b1;
+    if (!signal_present) rgb1_r = 1'b1;
     else if (waiting_trigger) begin rgb1_r = 1'b1; rgb1_g = 1'b1; end
     else rgb1_g = 1'b1;
   end

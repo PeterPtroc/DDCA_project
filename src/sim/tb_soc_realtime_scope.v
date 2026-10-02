@@ -1,13 +1,14 @@
 module tb_soc_realtime_scope;
   reg clk = 1'b0;
   reg rst = 1'b1;
-  reg [15:0] sw = 16'h049e; // FREE, generator, 100 kHz, 30%
+  reg [15:0] sw = 16'h0006; // FREE mode; unused switches stay low
   reg [4:0] btn = 5'd0;
   reg uart_rx_line = 1'b1;
   reg loopback_enable = 1'b1;
+  reg [2:0] test_select = 3'd6; // JA9: 100 kHz / 80%
   wire [15:0] led;
   wire uart_tx_line;
-  wire generator_out;
+  wire [7:0] fixed_test_out;
   wire capture_done;
   wire rgb0_r, rgb0_g, rgb0_b, rgb1_r, rgb1_g, rgb1_b;
   wire [7:0] monitor_data;
@@ -21,7 +22,11 @@ module tb_soc_realtime_scope;
 
   always #5 clk = ~clk;
   wire [7:0] capture_in = {7'd0,
-      loopback_enable ? generator_out : 1'b0};
+      loopback_enable ? fixed_test_out[test_select] : 1'b0};
+
+  fixed_test_signals fixed_signals (
+      .clk(clk), .rst(rst), .test_out(fixed_test_out)
+  );
 
   soc_top #(
       .IMEM_HEX("build/hex/scope.hex"),
@@ -33,7 +38,7 @@ module tb_soc_realtime_scope;
   ) dut (
       .clk(clk), .rst(rst), .sw(sw), .btn(btn), .capture_in(capture_in),
       .uart_rx(uart_rx_line), .led(led), .uart_tx(uart_tx_line),
-      .generator_out(generator_out), .seg_an(), .seg(), .seg_dp(),
+      .seg_an(), .seg(), .seg_dp(),
       .rgb0_r(rgb0_r), .rgb0_g(rgb0_g), .rgb0_b(rgb0_b),
       .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
@@ -109,27 +114,21 @@ module tb_soc_realtime_scope;
     rst = 1'b0;
     wait_clocks(120000);
 
-    if (!dut.bus.generator_enabled || dut.bus.generator_period !== 32'd1000 ||
-        dut.bus.generator_high !== 32'd300)
-      $fatal(1, "generator preset mismatch en=%b period=%0d high=%0d",
-          dut.bus.generator_enabled, dut.bus.generator_period,
-          dut.bus.generator_high);
+    // Selectable simulation jumper: JA9 -> JB1.
     if (!dut.bus.edge_valid || dut.bus.edge_frequency !== 32'd100000 ||
-        dut.bus.edge_period !== 32'd1000 || dut.bus.edge_high !== 32'd300)
-      $fatal(1, "edge measurement mismatch valid=%b f=%0d p=%0d h=%0d",
+        dut.bus.edge_period !== 32'd1000 || dut.bus.edge_high !== 32'd800)
+      $fatal(1, "JA9 measurement mismatch valid=%b f=%0d p=%0d h=%0d",
           dut.bus.edge_valid, dut.bus.edge_frequency,
           dut.bus.edge_period, dut.bus.edge_high);
 
-    // Preset 11 is the plan's required 390.625 kHz characterization point.
-    sw = 16'h04be;             // FREE, generator, 390.625 kHz, 30%
-    wait_clocks(5000);
-    if (dut.bus.generator_period !== 32'd256 ||
-        dut.bus.generator_high !== 32'd76 || !dut.bus.edge_valid ||
-        dut.bus.edge_frequency !== 32'd390625 ||
-        dut.bus.edge_period !== 32'd256 || dut.bus.edge_high !== 32'd76)
-      $fatal(1, "390.625 kHz preset mismatch f=%0d p=%0d h=%0d",
+    // Move the simulated Dupont jumper to JA4 and verify its fixed waveform.
+    test_select = 3'd3;
+    wait_clocks(30000);
+    if (!dut.bus.edge_valid || dut.bus.edge_frequency !== 32'd14242 ||
+        dut.bus.edge_period !== 32'd7021 || dut.bus.edge_high !== 32'd3511)
+      $fatal(1, "JA4 measurement mismatch f=%0d p=%0d h=%0d",
           dut.bus.edge_frequency, dut.bus.edge_period, dut.bus.edge_high);
-    sw = 16'h049e;             // restore 100 kHz / 30%
+    test_select = 3'd6;
     wait_clocks(5000);
 
     if (dut.bus.live_frame_counter < 3 || led === 16'h0000 || led === 16'hffff)
@@ -157,7 +156,7 @@ module tb_soc_realtime_scope;
 
     // A SINGLE request without an input edge remains visibly armed.
     loopback_enable = 1'b0;
-    sw = 16'h049c;             // SINGLE, generator, 100 kHz, 30%
+    sw = 16'h0004;             // SINGLE
     wait_clocks(1000);
     press_button(0);
     dut.dm.mem[4] = dut.bus.timer.timer[31:0] - 32'd5000000;
@@ -171,7 +170,7 @@ module tb_soc_realtime_scope;
           dut.bus.display.display_data1, dut.bus.display.display_data0);
 
     // The existing fatal-result convention must also have an explicit page.
-    sw = 16'h049e;             // FREE, generator, 100 kHz, 30%
+    sw = 16'h0006;             // FREE
     loopback_enable = 1'b1;
     wait_clocks(1000);
     force dut.bus.gpio.test_result = 32'hdead0000;
@@ -193,7 +192,7 @@ module tb_soc_realtime_scope;
       $fatal(1, "timebase was not shared: live=%0d deep=%0d",
           dut.bus.live_sample_div, dut.bus.cap.sample_div);
 
-    sw = 16'h049c;             // SINGLE, generator, 100 kHz, 30%
+    sw = 16'h0004;             // SINGLE
     wait_clocks(1000);
     press_button(0);           // arm live + deep
     wait_clocks(15000);
@@ -205,45 +204,17 @@ module tb_soc_realtime_scope;
     if (dut.dm.mem[2] !== 32'd1)
       $fatal(1, "firmware did not enter HOLD after SINGLE");
 
-    // Physical-self-test logic compares the real measured loopback path.
-    sw = 16'h449e;             // SW14 self-test + FREE + generator
-    wait_clocks(8000);
-    if (!rgb1_g || rgb1_r)
-      $fatal(1, "self-test PASS RGB state mismatch r=%b g=%b b=%b",
-          rgb1_r, rgb1_g, rgb1_b);
-    dut.dm.mem[4] = dut.bus.timer.timer[31:0] - 32'd5000000;
-    wait_clocks(8000);
-    if (dut.bus.display.display_data0 !== 32'h110a1818 ||
-        dut.bus.display.display_data1 !== 32'h1f1f1f1f)
-      $fatal(1, "self-test PASS display mismatch data=%h_%h",
-          dut.bus.display.display_data1, dut.bus.display.display_data0);
+    sw = 16'h0006;             // restore switch-selected FREE mode
+    wait_clocks(1000);
 
+    // The compact status response remains available over UART.
     start = rx_count;
-    uart_send(8'h73);          // status, including physical self-test result
+    uart_send(8'h73);
     wait_clocks(8000);
-    if (rx_count - start !== 19 || rx_bytes[start] !== "S" ||
+    if (rx_count - start !== 5 || rx_bytes[start] !== "S" ||
         rx_bytes[start+1] !== "C" || rx_bytes[start+2] !== "P" ||
-        rx_bytes[start+3] !== "2" || rx_bytes[start+14] !== "P" ||
-        rx_bytes[start+17] !== "S" || rx_bytes[start+18] !== 8'h0a)
+        rx_bytes[start+3] !== "2" || rx_bytes[start+4] !== 8'h0a)
       $fatal(1, "status UART response mismatch bytes=%0d", rx_count-start);
-
-    // A broken physical self-test path is the user-visible ERROR condition.
-    loopback_enable = 1'b0;
-    wait_clocks(6000);
-    if (!rgb0_r || rgb0_g || rgb0_b || !rgb1_r || rgb1_g || rgb1_b)
-      $fatal(1, "self-test FAIL RGB state mismatch rgb0=%b%b%b rgb1=%b%b%b",
-          rgb0_r, rgb0_g, rgb0_b, rgb1_r, rgb1_g, rgb1_b);
-    dut.dm.mem[4] = dut.bus.timer.timer[31:0] - 32'd5000000;
-    wait_clocks(8000);
-    if (dut.bus.display.display_data0 !== 32'h0f0a1915 ||
-        dut.bus.display.display_data1 !== 32'h1f1f1f1f)
-      $fatal(1, "self-test FAIL display mismatch data=%h_%h",
-          dut.bus.display.display_data1, dut.bus.display.display_data0);
-    loopback_enable = 1'b1;
-    wait_clocks(5000);
-    if (rgb0_r || !rgb0_b || !rgb1_g || rgb1_r)
-      $fatal(1, "self-test recovery RGB state mismatch rgb0=%b%b%b rgb1=%b%b%b",
-          rgb0_r, rgb0_g, rgb0_b, rgb1_r, rgb1_g, rgb1_b);
 
     // UART HOLD and RUN must control the live data path without button input.
     uart_send(8'h68);
@@ -274,7 +245,7 @@ module tb_soc_realtime_scope;
 
     // Enable telemetry and age its firmware deadline so the 100 ms service
     // path can be verified without simulating ten million idle clocks.
-    sw = 16'h649e;
+    sw = 16'h2006;
     wait_clocks(1000);
     start = rx_count;
     dut.dm.mem[5] = dut.bus.timer.timer[31:0] - 32'd10000000;
@@ -283,7 +254,7 @@ module tb_soc_realtime_scope;
         rx_bytes[start+1] !== "E" || rx_bytes[start+2] !== "A" ||
         rx_bytes[start+3] !== "2")
       $fatal(1, "telemetry MEA2 response mismatch bytes=%0d", rx_count-start);
-    sw = 16'h449e;
+    sw = 16'h0006;
     wait_clocks(1000);
 
     start = rx_count;
@@ -319,12 +290,12 @@ module tb_soc_realtime_scope;
         rx_bytes[start+3] !== "2")
       $fatal(1, "perf UART response mismatch bytes=%0d", rx_count-start);
 
-    sw = 16'h0496;             // generator off, FREE
+    loopback_enable = 1'b0;    // disconnect the simulated JA-to-JB1 jumper
     wait_clocks(8000);
     if (dut.bus.signal_present || dut.bus.edge_valid || !rgb1_r)
-      $fatal(1, "no-signal timeout/status failed present=%b valid=%b rgb_r=%b gen=%b age=%0d sw=%h cached_sw=%h pc=%h",
+      $fatal(1, "no-signal timeout/status failed present=%b valid=%b rgb_r=%b age=%0d sw=%h cached_sw=%h pc=%h",
           dut.bus.signal_present, dut.bus.edge_valid, rgb1_r,
-          dut.bus.generator_enabled, dut.bus.edge_age, sw,
+          dut.bus.edge_age, sw,
           dut.dm.mem[3], dut.cpu.pc);
     // Earlier UP presses intentionally started a one-second timebase pop-up.
     // Expire it here so this accelerated test observes the no-signal page.

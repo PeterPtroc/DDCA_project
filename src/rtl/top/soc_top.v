@@ -15,7 +15,6 @@ module soc_top #(
     input wire uart_rx,
     output wire [15:0] led,
     output wire uart_tx,
-    output wire generator_out,
     output wire [7:0] seg_an,
     output wire [6:0] seg,
     output wire seg_dp,
@@ -63,7 +62,7 @@ module soc_top #(
       .retire(rv), .stall(es), .fwd_ex(ef),
       .fwd_wb(wf), .flush(fl), .branch(br), .branch_taken(bt), .crc(crc),
       .rdata(mmio_r), .led(led), .test_result(test_result), .uart_tx(uart_tx),
-      .generator_out(generator_out), .capture_armed(),
+      .capture_armed(),
       .capture_triggered(), .capture_done(), .seg_an(seg_an),
       .seg(seg), .seg_dp(seg_dp), .rgb0_r(rgb0_r), .rgb0_g(rgb0_g),
       .rgb0_b(rgb0_b), .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)

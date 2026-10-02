@@ -7,7 +7,7 @@ module nexys_a7_top (
     output wire [15:0] led,
     input wire uart_rx,
     output wire uart_tx,
-    output wire ja1,
+    output wire [7:0] pmod_ja,
     input wire jb1,
     output wire [7:0] seg_an,
     output wire [6:0] seg,
@@ -27,16 +27,17 @@ module nexys_a7_top (
     else reset_sync <= {reset_sync[0], 1'b1};
   end
   wire reset = ~reset_sync[1];
-  wire generator_out;
 
   soc_top soc (
       .clk(clk100), .rst(reset), .sw(sw), .btn(btn),
       .capture_in({7'd0, jb1}),
-      .uart_rx(uart_rx), .led(led), .uart_tx(uart_tx),
-      .generator_out(generator_out), .seg_an(seg_an),
+      .uart_rx(uart_rx), .led(led), .uart_tx(uart_tx), .seg_an(seg_an),
       .seg(seg), .seg_dp(seg_dp), .rgb0_r(rgb0_r), .rgb0_g(rgb0_g), .rgb0_b(rgb0_b),
       .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
-  assign ja1 = generator_out;
+
+  fixed_test_signals test_signals (
+      .clk(clk100), .rst(reset), .test_out(pmod_ja)
+  );
 endmodule
 `default_nettype wire

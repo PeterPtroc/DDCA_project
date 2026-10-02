@@ -54,8 +54,8 @@ try {
     $serial.Write("s")
     try { $status = $serial.ReadLine().Trim() }
     catch { throw "UART timeout during status response: $($_.Exception.Message)" }
-    if ($status -ne "SCP2 SELFTEST PASS") {
-        throw "Expected SELFTEST PASS: enable SW3 and SW14, select 100 kHz/30%, and connect JA1 to JB1 (status='$status')"
+    if ($status -ne "SCP2") {
+        throw "Unexpected status response '$status'"
     }
 
     $serial.Write("m")
@@ -71,9 +71,9 @@ try {
     }
     if ([math]::Abs([int64]$frequency - 100000) -gt 200 -or
         [math]::Abs([int64]$period - 1000) -gt 2 -or
-        [math]::Abs([int64]$high - 300) -gt 2 -or
-        [math]::Abs([int64]$low - 700) -gt 2) {
-        throw "Expected 100 kHz/30%: frequency=$frequency period=$period high=$high low=$low"
+        [math]::Abs([int64]$high - 800) -gt 2 -or
+        [math]::Abs([int64]$low - 200) -gt 2) {
+        throw "Expected JA9 100 kHz/80%: frequency=$frequency period=$period high=$high low=$low"
     }
 
     $dumpSummary = ""
@@ -96,9 +96,9 @@ try {
         $root = Split-Path -Parent $PSScriptRoot
         $artifactRoot = Join-Path $root $ArtifactDirectory
         New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
-        $packetPath = Join-Path $artifactRoot "physical_100khz_30pct.cap2"
-        $csvPath = Join-Path $artifactRoot "physical_100khz_30pct.csv"
-        $vcdPath = Join-Path $artifactRoot "physical_100khz_30pct.vcd"
+        $packetPath = Join-Path $artifactRoot "physical_ja9_100khz_80pct.cap2"
+        $csvPath = Join-Path $artifactRoot "physical_ja9_100khz_80pct.csv"
+        $vcdPath = Join-Path $artifactRoot "physical_ja9_100khz_80pct.vcd"
         [IO.File]::WriteAllBytes($packetPath, [byte[]]$capture)
         $python = (Get-Command python.exe -ErrorAction Stop).Source
         & $python (Join-Path $root "tools\capture_dump.py") $packetPath $vcdPath --csv $csvPath
@@ -115,7 +115,7 @@ try {
     }
 
     $duty = [math]::Round(100.0 * $high / $period, 3)
-    Write-Host "HARDWARE SCOPE PASS: status='$status' frequency=${frequency}Hz period=$period high=$high low=$low duty=$duty%$dumpSummary"
+    Write-Host "HARDWARE SCOPE PASS (JA9 -> JB1): status='$status' frequency=${frequency}Hz period=$period high=$high low=$low duty=$duty%$dumpSummary"
 }
 finally {
     if ($serial.IsOpen) { $serial.Close() }

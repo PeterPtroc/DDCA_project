@@ -17,10 +17,10 @@ Five-stage RV32 CPU <-------- MMIO --------+---- Seven Segment
         +---- forwarding / load-use stall / branch flush
         +---- CRC16.B / retire trace / performance counters
 
-Signal Generator -------------------------- JA1
+Eight fixed test counters ---------------- JA1/2/3/4/7/8/9/10
 ```
 
-输入只经过一组 `input_sync`，三个消费者共享同一个同步结果。实时数据面不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时和频率除法，`scope_capture` 管理环形采样窗口。CPU 运行 `scope.S`，负责配置变化、按钮事件、数码管内容、UART、自检和深度采集传输。
+输入只经过一组 `input_sync`，三个消费者共享同一个同步结果。实时数据面不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时和频率除法，`scope_capture` 管理环形采样窗口。CPU 运行 `scope.S`，负责 Scope 配置变化、按钮事件、数码管内容、UART 和深度采集传输。JA 固定测试输出独立于 CPU/MMIO，复位释放后八路同时持续工作。
 
 ## CPU
 
@@ -43,7 +43,6 @@ Edge Meter 输出 `period_ticks`、`high_ticks`、`low_ticks`、`frequency_hz`�
 | `0x40000000` | GPIO / firmware test result |
 | `0x40001000` | UART |
 | `0x40002000` | 64-bit timer |
-| `0x40003000` | Signal Generator |
 | `0x40004000` | Deep Capture control/status |
 | `0x40005000` | Live Scope |
 | `0x40006000` | Performance counters |
@@ -66,4 +65,4 @@ CRC 使用初值 `0xffff` 和多项式 `0xa001`，覆盖头与 payload；固件�
 
 ## 顶层与时序
 
-`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、JA1 和 JB1。生产工程使用显式 RTL source list。实现脚本在写位流前要求 routed setup/hold slack 均非负，且 DRC 无 Error 或 Critical Warning。
+`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、8 位 `pmod_ja` 固定输出和唯一测量输入 JB1。生产工程使用显式 RTL source list。实现脚本在写位流前要求 routed setup/hold slack 均非负，且 DRC 无 Error 或 Critical Warning。

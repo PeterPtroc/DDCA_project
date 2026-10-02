@@ -6,7 +6,6 @@
         lui   s0, 0x40000       # GPIO / result
         lui   s1, 0x40001       # UART
         lui   s2, 0x40002       # Timer
-        lui   s3, 0x40003       # Signal generator
         lui   s4, 0x40004       # Deep capture
         lui   s5, 0x40005       # Live scope
         lui   s6, 0x40006       # Performance counters
@@ -57,7 +56,7 @@ main_loop:
         call  service_telemetry
         j     main_loop
 
-# Apply SW0/2:1/3/7:4/11:8/12 when synchronized switch state changes.
+# Apply the meaningful scope controls when synchronized switch state changes.
 update_switches:
         addi  sp, sp, -4
         sw    ra, 0(sp)
@@ -78,24 +77,6 @@ update_switches:
         ori   t1, t1, 1
         sw    t1, 0(s9)
 
-        srli  a0, t0, 4        # generator frequency preset
-        andi  a0, a0, 15
-        call  generator_period
-        sw    a0, 24(s10)
-        sw    a0, 4(s3)
-        lw    t0, 12(s10)
-        srli  a0, t0, 8        # duty preset
-        andi  a0, a0, 15
-        call  duty_percent
-        mv    a1, a0
-        lw    a0, 24(s10)
-        call  compute_high
-        sw    a0, 28(s10)
-        sw    a0, 8(s3)
-        lw    t0, 12(s10)
-        srli  t0, t0, 3
-        andi  t0, t0, 1
-        sw    t0, 0(s3)
 update_switches_done:
         lw    ra, 0(sp)
         addi  sp, sp, 4
@@ -248,13 +229,6 @@ periodic_display:
         srli  t4, t4, 16
         li    t5, 0xdead
         beq   t4, t5, display_error
-        # Physical self-test owns the display while SW14 and the generator are
-        # enabled.  This makes PASS/FAIL unambiguous even if a disconnected,
-        # floating JB1 happens to pick up stray edges.
-        lw    t4, 12(s10)
-        li    t5, 0x4008
-        and   t6, t4, t5
-        beq   t6, t5, display_selftest
         # Deep-capture armed is the unambiguous SINGLE waiting state.  Merely
         # selecting SINGLE does not show Ar until CENTER (or UART `single`)
         # has actually armed the capture engines.
@@ -286,9 +260,6 @@ display_no_signal:
         j     periodic_display_done
 display_hold:
         call  show_hold
-        j     periodic_display_done
-display_selftest:
-        call  show_selftest
         j     periodic_display_done
 display_armed:
         # Two right-most digits, read left-to-right as Ar.
@@ -397,46 +368,6 @@ show_no_signal:
 show_hold:
         # Four right-most digits, read left-to-right as HOLD.
         li    t0, 0x1200150d
-        sw    t0, 0(s8)
-        li    t0, 0x1f1f1f1f
-        sw    t0, 4(s8)
-        sw    x0, 8(s8)
-        ret
-
-show_selftest:
-        lw    t0, 0(s9)
-        andi  t0, t0, 3
-        addi  t1, x0, 3
-        bne   t0, t1, show_selftest_fail
-        lw    t0, 4(s9)
-        lw    t1, 24(s10)
-        sub   t2, t0, t1
-        addi  t3, x0, 2
-        bltu  t3, t2, show_selftest_period_reverse
-show_selftest_check_high:
-        lw    t0, 8(s9)
-        lw    t1, 28(s10)
-        sub   t2, t0, t1
-        bltu  t3, t2, show_selftest_high_reverse
-show_selftest_pass:
-        # Four right-most digits, read left-to-right as PASS.
-        li    t0, 0x110a1818
-        sw    t0, 0(s8)
-        li    t0, 0x1f1f1f1f
-        sw    t0, 4(s8)
-        sw    x0, 8(s8)
-        ret
-show_selftest_period_reverse:
-        sub   t2, t1, t0
-        bltu  t3, t2, show_selftest_fail
-        j     show_selftest_check_high
-show_selftest_high_reverse:
-        sub   t2, t1, t0
-        bltu  t3, t2, show_selftest_fail
-        j     show_selftest_pass
-show_selftest_fail:
-        # Four right-most digits, read left-to-right as FAIL.
-        li    t0, 0x0f0a1915
         sw    t0, 0(s8)
         li    t0, 0x1f1f1f1f
         sw    t0, 4(s8)
@@ -698,71 +629,6 @@ send_status:
         call  uart_putc
         addi  a0, x0, 50
         call  uart_putc
-        lw    t0, 12(s10)
-        li    t1, 0x4008       # SW14 self-test and SW3 generator enable
-        and   t0, t0, t1
-        bne   t0, t1, status_newline
-        addi  a0, x0, 32       # " SELFTEST "
-        call  uart_putc
-        addi  a0, x0, 83
-        call  uart_putc
-        addi  a0, x0, 69
-        call  uart_putc
-        addi  a0, x0, 76
-        call  uart_putc
-        addi  a0, x0, 70
-        call  uart_putc
-        addi  a0, x0, 84
-        call  uart_putc
-        addi  a0, x0, 69
-        call  uart_putc
-        addi  a0, x0, 83
-        call  uart_putc
-        addi  a0, x0, 84
-        call  uart_putc
-        addi  a0, x0, 32
-        call  uart_putc
-        lw    t0, 0(s9)
-        andi  t0, t0, 3
-        addi  t1, x0, 3
-        bne   t0, t1, status_fail
-        lw    t0, 4(s9)
-        lw    t1, 24(s10)
-        sub   t2, t0, t1
-        addi  t3, x0, 2
-        bltu  t3, t2, status_period_reverse
-status_check_high:
-        lw    t0, 8(s9)
-        lw    t1, 28(s10)
-        sub   t2, t0, t1
-        bltu  t3, t2, status_high_reverse
-status_pass:
-        addi  a0, x0, 80       # PASS
-        call  uart_putc
-        addi  a0, x0, 65
-        call  uart_putc
-        addi  a0, x0, 83
-        call  uart_putc
-        addi  a0, x0, 83
-        call  uart_putc
-        j     status_newline
-status_period_reverse:
-        sub   t2, t1, t0
-        bltu  t3, t2, status_fail
-        j     status_check_high
-status_high_reverse:
-        sub   t2, t1, t0
-        bltu  t3, t2, status_fail
-        j     status_pass
-status_fail:
-        addi  a0, x0, 70       # FAIL
-        call  uart_putc
-        addi  a0, x0, 65
-        call  uart_putc
-        addi  a0, x0, 73
-        call  uart_putc
-        addi  a0, x0, 76
-        call  uart_putc
 status_newline:
         addi  a0, x0, 10
         call  uart_putc
@@ -988,26 +854,6 @@ duty_zero:
         addi  sp, sp, 4
         ret
 
-# high = floor(period * duty_percent / 100) without a hardware multiplier.
-compute_high:
-        addi  sp, sp, -16
-        sw    ra, 12(sp)
-        sw    a1, 8(sp)
-        call  divide100
-        sw    a1, 4(sp)        # remainder
-        lw    a1, 8(sp)
-        call  multiply32       # quotient * duty
-        sw    a0, 0(sp)
-        lw    a0, 4(sp)
-        lw    a1, 8(sp)
-        call  multiply32       # remainder * duty (<= 8910)
-        call  divide100
-        lw    t0, 0(sp)
-        add   a0, a0, t0
-        lw    ra, 12(sp)
-        addi  sp, sp, 16
-        ret
-
 # a0 * a1 -> a0 (inputs used here are guaranteed to fit in 32 bits).
 multiply32:
         addi  t0, x0, 0
@@ -1068,95 +914,6 @@ divide10_next:
         bne   t2, x0, divide10_loop
         mv    a0, t0
         mv    a1, t1
-        ret
-
-generator_period:
-        beq   a0, x0, gen_period_0
-        addi  t0, x0, 1
-        beq   a0, t0, gen_period_1
-        addi  t0, x0, 2
-        beq   a0, t0, gen_period_2
-        addi  t0, x0, 3
-        beq   a0, t0, gen_period_3
-        addi  t0, x0, 4
-        beq   a0, t0, gen_period_4
-        addi  t0, x0, 5
-        beq   a0, t0, gen_period_5
-        addi  t0, x0, 6
-        beq   a0, t0, gen_period_6
-        addi  t0, x0, 7
-        beq   a0, t0, gen_period_7
-        addi  t0, x0, 8
-        beq   a0, t0, gen_period_8
-        addi  t0, x0, 9
-        beq   a0, t0, gen_period_9
-        addi  t0, x0, 10
-        beq   a0, t0, gen_period_10
-        addi  t0, x0, 11
-        beq   a0, t0, gen_period_11
-        addi  t0, x0, 12
-        beq   a0, t0, gen_period_12
-        addi  t0, x0, 13
-        beq   a0, t0, gen_period_13
-        addi  t0, x0, 14
-        beq   a0, t0, gen_period_14
-        addi  a0, x0, 10
-        ret
-gen_period_0:
-        li    a0, 100000000
-        ret
-gen_period_1:
-        li    a0, 10000000
-        ret
-gen_period_2:
-        li    a0, 1000000
-        ret
-gen_period_3:
-        li    a0, 100000
-        ret
-gen_period_4:
-        li    a0, 50000
-        ret
-gen_period_5:
-        li    a0, 20000
-        ret
-gen_period_6:
-        li    a0, 10000
-        ret
-gen_period_7:
-        li    a0, 5000
-        ret
-gen_period_8:
-        li    a0, 2000
-        ret
-gen_period_9:
-        li    a0, 1000
-        ret
-gen_period_10:
-        addi  a0, x0, 500
-        ret
-gen_period_11:
-        addi  a0, x0, 256     # 390.625 kHz characterization point
-        ret
-gen_period_12:
-        addi  a0, x0, 100
-        ret
-gen_period_13:
-        addi  a0, x0, 50
-        ret
-gen_period_14:
-        addi  a0, x0, 20
-        ret
-
-duty_percent:
-        addi  t0, x0, 15
-        beq   a0, t0, duty_90
-        slli  t0, a0, 2
-        add   t0, t0, a0
-        addi  a0, t0, 10
-        ret
-duty_90:
-        addi  a0, x0, 90
         ret
 
 timebase_div:

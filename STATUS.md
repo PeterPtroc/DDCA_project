@@ -7,17 +7,20 @@ Updated: 2026-10-02
 | CPU differential: `isa_test` | PASS, 117 retire events |
 | CPU differential: `hazard_test` | PASS, 47 retire events |
 | CPU differential: `crc_test` | PASS, 26 retire events |
-| Scope core | PASS |
-| SoC integration | PASS |
+| Scope core | PASS, all 8 fixed JA outputs checked for two periods |
+| SoC integration | PASS, JA4 and JA9 loopback cases |
 | Synthesis | PASS |
 | Implementation | PASS |
-| Setup WNS | +0.029 ns |
-| Hold WNS | +0.034 ns |
+| Setup WNS | +0.043 ns |
+| Hold WNS | +0.056 ns |
 | DRC | PASS, 0 Error / 0 Critical Warning |
-| Resources | 5225 LUT, 3379 FF, 640 LUTRAM |
+| Resources | 5255 LUT, 3385 FF, 640 LUTRAM |
+| Fixed JA block | 69 LUT, 104 FF |
 | Bitstream | `build/vivado/rv32_realtime_scope.bit` |
-| Bitstream SHA-256 | `5E3235828A740FAA4BF082FE2DB3292BE562E3EA66ECD97D96CDA8062F92D212` |
-| JTAG programming | PASS, Digilent `210292B7F710A` |
-| Hardware JA1→JB1 gate | Not signed on this image: board was set to 10 kHz/20% with self-test disabled |
+| Bitstream SHA-256 | `99E11CDA2545086955B6220EE227FB4A3697A7FE5C5D5537A6808A0F6C3E965E` |
+| JTAG programming | PASS, `xc7a100t_0` on Digilent `210292B7F710A` |
+| Physical-board loopback | Not run for this image; simulation results only |
 
-After programming the final image, UART returned a valid 10 kHz measurement (`10000/2001/7999` ticks), but the required 100 kHz/30%/SW14 setup was not physically selected. No hardware PASS is claimed for this rebuilt image.
+The final system is a single-channel real-time digital scope on JB1 plus eight
+always-on fixed test outputs on JA. No programmable generator MMIO or switch/UART
+configuration path remains.

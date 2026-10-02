@@ -28,7 +28,6 @@ module mmio_decoder #(
     output wire [15:0] led,
     output wire [31:0] test_result,
     output wire uart_tx,
-    output wire generator_out,
     output wire capture_armed,
     output wire capture_triggered,
     output wire capture_done,
@@ -45,7 +44,6 @@ module mmio_decoder #(
   wire gpio_sel = addr[31:12] == 20'h40000;
   wire uart_sel = addr[31:12] == 20'h40001;
   wire timer_sel = addr[31:12] == 20'h40002;
-  wire generator_sel = addr[31:12] == 20'h40003;
   wire cap_sel = addr[31:12] == 20'h40004;
   wire perf_sel = addr[31:12] == 20'h40006;
   wire button_sel = addr[31:12] == 20'h40007;
@@ -54,7 +52,7 @@ module mmio_decoder #(
   wire live_sel = addr[31:12] == 20'h40005;
   wire win_sel = addr[31:14] == 18'h10004;
 
-  wire [31:0] gdata, udata, tdata, generator_data, cdata, perfdata;
+  wire [31:0] gdata, udata, tdata, cdata, perfdata;
   wire [31:0] button_data, display_data, edge_data, live_data;
   wire [15:0] gpio_led;
   wire uart_ready, uart_rx_valid, uart_activity;
@@ -71,9 +69,6 @@ module mmio_decoder #(
   wire [31:0] live_sample_div;
   wire live_edge;
   wire scope_signal;
-  wire generator_enabled;
-  wire [31:0] generator_period, generator_high;
-  wire [15:0] switch_state;
   reg live_control_enable_reg;
   reg [1:0] live_mode_reg;
   reg live_hold_reg;
@@ -96,12 +91,6 @@ module mmio_decoder #(
       .tx_ready(uart_ready), .rx_valid(uart_rx_valid), .activity(uart_activity)
   );
   timer_mmio timer (.clk(clk), .rst(rst), .off(addr[2:0]), .rdata(tdata));
-  signal_generator generator (
-      .clk(clk), .rst(rst), .we(valid && we && generator_sel),
-      .off(addr[4:0]), .wdata(wdata), .rdata(generator_data),
-      .enabled(generator_enabled), .signal_out(generator_out),
-      .period_ticks(generator_period), .high_ticks(generator_high)
-  );
   scope_capture cap (
       .clk(clk), .rst(rst), .scope_signal(scope_signal),
       .we(valid && we && cap_sel), .off(addr[5:0]), .wdata(wdata),
@@ -120,7 +109,7 @@ module mmio_decoder #(
   button_mmio #(.DEBOUNCE_BITS(BUTTON_DEBOUNCE_BITS)) buttons (
       .clk(clk), .rst(rst), .btn_async(btn), .sw_async(sw),
       .event_read(valid && !we && button_sel && addr[3:0] == 4'h4),
-      .button_state(), .button_event(), .switch_state(switch_state),
+      .button_state(), .button_event(), .switch_state(),
       .off(addr[3:0]), .rdata(button_data)
   );
   sevenseg display (
@@ -188,27 +177,17 @@ module mmio_decoder #(
       (addr[5:2] == 4'h5) ? {16'd0, live_frame} :
       (addr[5:2] == 4'h6) ? live_frame_counter : 32'd0;
 
-  wire [31:0] period_error = (edge_period >= generator_period) ?
-      edge_period - generator_period : generator_period - edge_period;
-  wire [31:0] high_error = (edge_high >= generator_high) ?
-      edge_high - generator_high : generator_high - edge_high;
-  wire selftest_active = switch_state[14] && generator_enabled;
-  wire selftest_pass = edge_valid && signal_present &&
-      period_error <= 32'd2 && high_error <= 32'd2;
-
   rgb_status status (
       .run(live_running), .hold(live_hold), .single_armed(live_mode == 2'd2 && !live_single_done),
-      .error((test_result[31:16] == 16'hdead) ||
-             (selftest_active && !selftest_pass)),
+      .error(test_result[31:16] == 16'hdead),
       .signal_present(signal_present),
-      .waiting_trigger(live_waiting), .selftest(selftest_active),
-      .selftest_pass(selftest_pass),
+      .waiting_trigger(live_waiting),
       .rgb0_r(rgb0_r), .rgb0_g(rgb0_g), .rgb0_b(rgb0_b),
       .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
 
   assign rdata = gpio_sel ? gdata : uart_sel ? udata : timer_sel ? tdata :
-                 generator_sel ? generator_data : (cap_sel || win_sel) ? cdata :
+                 (cap_sel || win_sel) ? cdata :
                  perf_sel ? perfdata : button_sel ? button_data :
                  display_sel ? display_data : edge_sel ? edge_data :
                  live_sel ? live_data : 32'd0;

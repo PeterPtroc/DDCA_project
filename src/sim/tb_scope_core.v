@@ -12,30 +12,50 @@ module tb_scope_core;
     end
   endtask
 
-  // Signal generator
-  reg gen_rst = 1'b1;
-  reg gen_we = 1'b0;
-  reg [4:0] gen_off = 5'd0;
-  reg [31:0] gen_wdata = 32'd0;
-  wire [31:0] gen_rdata;
-  wire gen_enabled;
-  wire gen_signal;
-  wire [31:0] gen_period;
-  wire [31:0] gen_high;
+  // Eight continuously running fixed Pmod JA test signals.
+  reg fixed_rst = 1'b1;
+  wire [7:0] fixed_out;
 
-  signal_generator generator_dut (
-      .clk(clk), .rst(gen_rst), .we(gen_we), .off(gen_off),
-      .wdata(gen_wdata), .rdata(gen_rdata), .enabled(gen_enabled),
-      .signal_out(gen_signal), .period_ticks(gen_period),
-      .high_ticks(gen_high)
+  fixed_test_signals fixed_signals_dut (
+      .clk(clk), .rst(fixed_rst), .test_out(fixed_out)
   );
 
-  task gen_write;
-    input [4:0] address;
-    input [31:0] data;
+  task check_fixed_signal;
+    input integer channel;
+    input integer expected_period;
+    input integer expected_high;
+    integer sample_index;
+    integer align_count;
+    reg expected_level;
     begin
-      @(negedge clk); gen_off = address; gen_wdata = data; gen_we = 1'b1;
-      @(negedge clk); gen_we = 1'b0;
+      // Align to a low-to-high wrap, then check every cycle of two periods.
+      align_count = 0;
+      while (fixed_out[channel] !== 1'b0 &&
+             align_count <= expected_period) begin
+        @(negedge clk);
+        align_count = align_count + 1;
+      end
+      if (fixed_out[channel] !== 1'b0)
+        $fatal(1, "JA channel %0d never went low", channel);
+      while (fixed_out[channel] !== 1'b1 &&
+             align_count <= (expected_period * 2 + 2)) begin
+        @(negedge clk);
+        align_count = align_count + 1;
+      end
+      if (fixed_out[channel] !== 1'b1)
+        $fatal(1, "JA channel %0d never started a new period", channel);
+
+      for (sample_index = 0; sample_index < expected_period * 2;
+           sample_index = sample_index + 1) begin
+        expected_level = ((sample_index % expected_period) < expected_high);
+        if (fixed_out[channel] !== expected_level)
+          $fatal(1, "JA channel %0d mismatch at cycle %0d: expected %b got %b",
+              channel, sample_index, expected_level, fixed_out[channel]);
+        @(negedge clk);
+      end
+      $display("FIXED JA%0d PASS: period=%0d high=%0d (two periods)",
+          (channel < 4) ? channel + 1 : channel + 3,
+          expected_period, expected_high);
     end
   endtask
 
@@ -171,8 +191,6 @@ module tb_scope_core;
   reg ui_error = 1'b0;
   reg ui_present = 1'b0;
   reg ui_waiting = 1'b0;
-  reg ui_selftest = 1'b0;
-  reg ui_selftest_pass = 1'b0;
   wire ui_r0, ui_g0, ui_b0, ui_r1, ui_g1, ui_b1;
 
   button_mmio #(.DEBOUNCE_BITS(2)) buttons_dut (
@@ -190,8 +208,7 @@ module tb_scope_core;
   rgb_status rgb_dut (
       .run(ui_run), .hold(ui_hold), .single_armed(ui_single_armed),
       .error(ui_error), .signal_present(ui_present),
-      .waiting_trigger(ui_waiting), .selftest(ui_selftest),
-      .selftest_pass(ui_selftest_pass), .rgb0_r(ui_r0), .rgb0_g(ui_g0),
+      .waiting_trigger(ui_waiting), .rgb0_r(ui_r0), .rgb0_g(ui_g0),
       .rgb0_b(ui_b0), .rgb1_r(ui_r1), .rgb1_g(ui_g1), .rgb1_b(ui_b1)
   );
 
@@ -206,33 +223,25 @@ module tb_scope_core;
   endtask
 
   integer i;
-  integer high_count;
   reg [31:0] saved_frame_count;
 
   initial begin
     clocks(3);
-    gen_rst = 1'b0;
+    fixed_rst = 1'b0;
     edge_rst = 1'b0;
     live_rst = 1'b0;
     capture_rst = 1'b0;
     ui_rst = 1'b0;
 
-    // Generator: programmed period/high time, enable and disable behavior.
-    gen_write(5'h04, 10);
-    gen_write(5'h08, 3);
-    gen_write(5'h00, 1);
-    high_count = 0;
-    for (i = 0; i < 10; i = i + 1) begin
-      @(posedge clk);
-      if (gen_signal) high_count = high_count + 1;
-    end
-    if (!gen_enabled || gen_period !== 32'd10 || gen_high !== 32'd3 ||
-        high_count !== 3)
-      $fatal(1, "generator mismatch en=%b period=%0d high=%0d observed=%0d",
-          gen_enabled, gen_period, gen_high, high_count);
-    gen_write(5'h00, 0);
-    clocks(2);
-    if (gen_enabled || gen_signal) $fatal(1, "generator disable failed");
+    // Each JA output must match two complete fixed periods and high times.
+    check_fixed_signal(0, 100000, 20000);
+    check_fixed_signal(1, 50000, 15000);
+    check_fixed_signal(2, 20000, 8000);
+    check_fixed_signal(3, 7021, 3511);
+    check_fixed_signal(4, 5000, 3000);
+    check_fixed_signal(5, 2000, 1400);
+    check_fixed_signal(6, 1000, 800);
+    check_fixed_signal(7, 500, 450);
 
     // Edge meter: period/high/low/frequency plus no-signal timeout.
     edge_level(1'b0, 3);

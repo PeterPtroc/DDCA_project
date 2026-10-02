@@ -22,6 +22,7 @@ set production_sources [list \
     [file join $root src rtl peripheral button_debounce.v] \
     [file join $root src rtl peripheral button_mmio.v] \
     [file join $root src rtl peripheral edge_meter_scope.v] \
+    [file join $root src rtl peripheral fixed_test_signals.v] \
     [file join $root src rtl peripheral gpio_mmio.v] \
     [file join $root src rtl peripheral input_sync.v] \
     [file join $root src rtl peripheral live_scope.v] \
@@ -29,7 +30,6 @@ set production_sources [list \
     [file join $root src rtl peripheral rgb_status.v] \
     [file join $root src rtl peripheral scope_capture.v] \
     [file join $root src rtl peripheral sevenseg.v] \
-    [file join $root src rtl peripheral signal_generator.v] \
     [file join $root src rtl peripheral timer_mmio.v] \
     [file join $root src rtl peripheral uart_mmio.v] \
     [file join $root src rtl peripheral uart_rx.v] \
