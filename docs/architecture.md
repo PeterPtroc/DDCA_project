@@ -3,53 +3,53 @@
 ## 数据通路
 
 ```text
-JB1 asynchronous input
+JB1 异步输入
         |
-   2FF synchronizer
+   两级触发器同步器
         |
-        +---- Live Scope ------ 16-bit frame ------ LED[15:0]
-        +---- Edge Meter ------ period/high/status
-        +---- Deep Capture ---- 4096 x 1 sample window
+        +---- 实时波形 ------ 16 位采样帧 ------ LED[15:0]
+        +---- 边沿测量 ------ 周期/高电平/状态
+        +---- 深度采集 ------ 4096×1 采样窗口
                                            |
                                            v
-Five-stage RV32 CPU <-------- MMIO --------+---- Seven Segment
+五级流水 RV32 CPU <---------- MMIO --------+---- 八位数码管
         |                                  +---- UART
-        +---- forwarding / load-use stall / branch flush
-        +---- CRC16.B / retire trace / performance counters
+        +---- 数据前递 / 加载-使用停顿 / 分支冲刷
+        +---- CRC16.B / 指令提交跟踪 / 性能计数器
 
-Eight fixed test counters ---------------- JA1/2/3/4/7/8/9/10
+8 路固定测试计数器 ----------------------- JA1/2/3/4/7/8/9/10
 ```
 
-输入只经过一组 `input_sync`，三个消费者共享同一个同步结果。实时数据面不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时并保留原始 `period_ticks`/`high_ticks`，`scope_capture` 管理环形采样窗口。CPU 运行 `scope.S`，负责 Scope 配置变化、按钮事件、数码管内容、UART 和深度采集传输；它对一致性快照计算 `low_ticks` 和 `frequency_hz`，再把缓存值用于显示与传输。JA 固定测试输出独立于 CPU/MMIO，复位释放后八路同时持续工作。
+输入只经过一组 `input_sync`，三个模块共享同一个同步结果。实时数据通路不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时并保留原始的 `period_ticks` 和 `high_ticks`，`scope_capture` 管理环形采样窗口。CPU 运行 `scope.S`，处理示波器配置、按钮事件、数码管内容、UART 通信和深度采集传输。CPU 根据一致性快照计算 `low_ticks` 和 `frequency_hz`，再将缓存值用于显示和传输。JA 固定测试输出独立于 CPU 和 MMIO；复位释放后，8 路信号同时持续工作。
 
 ## CPU
 
-`rv32_core` 是五级流水 RV32 实现，保留 EX/WB forwarding、load-use interlock、branch/control flush、自定义 `CRC16.B` 指令、architectural retire trace 和性能事件。未使用的 branch 控制副本已移除；条件比较直接由 funct3 选择。无寄存器依赖的 JAL 在 ID 阶段提前 redirect，JALR 和条件分支仍在 EX 阶段 redirect。`CPU_PC_NEXT_STYLE` 可切换 PC CE 与显式 `pc_next` 写法用于时序 A/B。指令存储器默认加载 `build/hex/scope.hex`；CPU 行为由三组 directed firmware 与独立 Python reference 做差分验证。
+`rv32_core` 是五级流水 RV32 实现，支持 EX/WB 数据前递、加载-使用互锁、分支及控制冒险冲刷、自定义 `CRC16.B` 指令、架构级指令提交跟踪和性能事件计数。条件比较直接由 `funct3` 选择。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。`CPU_PC_NEXT_STYLE` 可以在 PC 时钟使能和显式 `pc_next` 两种写法间切换，用于时序对比。指令存储器默认加载 `build/hex/scope.hex`；三组定向测试固件通过独立的 Python 参考模型对 CPU 行为进行差分验证。
 
 ## 实时波形与深度采集
 
-Live Scope 保存短历史。AUTO/NORMAL/SINGLE 模式将所选边沿对齐到 LED7，FREE 模式每 16 个样本发布一帧；HOLD 阻止新帧发布，AUTO 在长时间无触发时强制刷新。`sample_div` 控制时基。
+实时波形模块保存一段短采样历史。`AUTO`、`NORMAL` 和 `SINGLE` 模式将所选边沿对齐到 LED7；`FREE` 模式每 16 个样本发布一帧。`HOLD` 阻止新帧发布，`AUTO` 在长时间没有触发时强制刷新。`sample_div` 控制时基。
 
-Deep Capture 是 4096×1 环形窗口。触发前保留 2048 点，触发后收集剩余样本，最终按时间顺序映射到 `0x40010000..0x40013fff`，trigger index 固定为 2048。边沿检测在 100 MHz 时钟域进行，存储采样仍遵循 `sample_div`。
+深度采集模块使用 4096×1 环形窗口。触发前保留 2048 点，触发后收集剩余样本，最后按时间顺序映射到 `0x40010000..0x40013fff`，触发位置固定为第 2048 点。边沿检测在 100 MHz 时钟域中进行，写入采样窗口的间隔仍由 `sample_div` 决定。
 
 ## 边沿测量
 
-Edge Meter 硬件输出 `period_ticks`、`high_ticks`、`edge_age`、`valid` 和 `signal_present`。一个 tick 为 10 ns；可选最近四周期平均。无有效边沿超过动态超时后清除有效状态，避免软件继续使用过期读数。固件在读取期间两次采样 `period_ticks`，只有前后一致才更新缓存，并计算 `low_ticks = max(period_ticks - high_ticks, 0)` 与 `frequency_hz = floor(100000000 / period_ticks)`。这样把 32 位 restoring divider 从 FPGA 时序路径移到 CPU 计算，同时保持 `MEA2` 和 CAP2 的协议字段不变。
+边沿测量硬件输出 `period_ticks`、`high_ticks`、`edge_age`、`valid` 和 `signal_present`。每个时钟计数为 10 ns，也可选择对最近四个周期求平均。超过动态超时时间仍未检测到有效边沿时，硬件会清除有效状态，避免软件继续使用过期读数。固件读取两次 `period_ticks`，只有两次结果一致时才更新缓存，并计算 `low_ticks = max(period_ticks - high_ticks, 0)` 和 `frequency_hz = floor(100000000 / period_ticks)`。32 位恢复除法因此由 CPU 执行，不再位于 FPGA 时序路径中；`MEA2` 和 CAP2 的协议字段保持不变。
 
 ## MMIO
 
-| Base | 外设 |
+| 基地址 | 外设 |
 | --- | --- |
-| `0x40000000` | GPIO / firmware test result |
+| `0x40000000` | GPIO / 固件测试结果 |
 | `0x40001000` | UART |
-| `0x40002000` | 64-bit timer |
-| `0x40004000` | Deep Capture control/status |
-| `0x40005000` | Live Scope |
-| `0x40006000` | Performance counters |
-| `0x40007000` | Buttons / switches |
-| `0x40008000` | Seven segment |
-| `0x40009000` | Edge Meter |
-| `0x40010000` | 4096-sample capture window |
+| `0x40002000` | 64 位计时器 |
+| `0x40004000` | 深度采集控制/状态 |
+| `0x40005000` | 实时波形 |
+| `0x40006000` | 性能计数器 |
+| `0x40007000` | 按钮/开关 |
+| `0x40008000` | 八位数码管 |
+| `0x40009000` | 边沿测量 |
+| `0x40010000` | 4096 点采样窗口 |
 
 ## CAP2
 
@@ -61,11 +61,10 @@ trigger_index[2] period[4] high[4] frequency[4]
 packed_samples[512] crc16[2]
 ```
 
-`period`、`high` 和 `frequency` 由固件缓存写入 CAP2；`low` 不单独进入
-CAP2，而是由客户端按 `period - high`（下限为 0）得到。
+`period`、`high` 和 `frequency` 由固件缓存写入 CAP2。`low` 不单独写入 CAP2，客户端按 `period - high` 计算，结果下限为 0。
 
-CRC 使用初值 `0xffff` 和多项式 `0xa001`，覆盖头与 payload；固件逐字节执行 `CRC16.B`。
+CRC 使用初值 `0xffff` 和多项式 `0xa001`，校验范围包括包头和数据区；固件逐字节执行 `CRC16.B`。
 
 ## 顶层与时序
 
-`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、8 位 `pmod_ja` 固定输出和唯一测量输入 JB1。生产工程使用显式 RTL source list。实现脚本在写位流前要求 routed setup/hold slack 均非负，且 DRC 无 Error 或 Critical Warning。
+`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、8 位 `pmod_ja` 固定输出和唯一的测量输入 JB1。用于生成位流的工程显式列出所有 RTL 源文件。实现脚本写入位流前会检查布线后的建立和保持时序裕量，两者必须均为非负值；DRC 也不能含有 `Error` 或 `Critical Warning`。
