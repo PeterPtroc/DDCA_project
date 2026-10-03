@@ -12,7 +12,12 @@ JA1/2/3/4/7/8/9/10 <- 8 路固定测试信号（持续输出）
 
 ## 主要功能
 
-- 自研五级流水 RV32 CPU，支持数据前递、加载-使用冒险停顿、控制冒险冲刷、自定义 `CRC16.B` 指令、指令提交跟踪和性能计数器
+- 自研六级流水 `RV32I + Zicsr` CPU，支持 M-mode、精确异常/中断、数据前递、加载-使用冒险停顿、控制冒险冲刷、自定义 `CRC16.B`、指令提交跟踪和性能计数器
+- 完整的 `LB/LBU/LH/LHU/LW`、`SB/SH/SW`、`FENCE/FENCE.I`，并对未对齐指令、加载和存储产生规范 trap
+- 标准机器态 CSR、`ECALL/EBREAK/MRET`，以及 `mtime/mtimecmp/msip` CLINT（地址与常见 RISC-V 平台一致）
+- 64 KiB 指令 BRAM和 64 KiB 数据 BRAM；数据侧只读 ROM 端口用于 C 运行时复制 `.data` 和读取 `.rodata`
+- GCC `rv32i_zicsr/ilp32` C 运行时和官方 FreeRTOS Kernel V11.3.1 RISC-V port，启用 1 kHz 抢占式调度
+- FreeRTOS 中的测量、UI、UART 和采集四任务应用，使用队列和任务通知传递测量/采集事件
 - 单通道 16 点 LED 实时波形，支持 `AUTO`、`NORMAL`、`SINGLE`、`FREE` 和 `RUN/HOLD`
 - 上升沿/下降沿触发与 16 档时基
 - 边沿测量硬件计算 `period_ticks` 和 `high_ticks`，并检测无信号超时；CPU 计算 `frequency_hz` 和 `low_ticks`，供占空比显示、UART 响应和 CAP2 数据包使用
@@ -40,17 +45,25 @@ JA 是 12 针 Pmod 接口：JA1–JA4、JA7–JA10 是上述 8 路数字输出�
 
 ```powershell
 .\scripts\test.ps1
+.\scripts\build_freertos.ps1
+.\scripts\test_freertos.ps1
 vivado -mode batch -source scripts/create_vivado_project.tcl
 vivado -mode batch -source scripts/build_bitstream.tcl
 vivado -mode batch -source scripts/program_analyzer.tcl
 .\scripts\test_hardware.ps1 -Port COM9
+.\scripts\test_hardware_soak.ps1 -Port COM9 -DurationMinutes 10
 ```
 
-生成的位流位于 `build/vivado/rv32_realtime_scope.bit`，默认固件位于 `build/hex/scope.hex`。如需同时检查 CAP2/CSV/VCD 导出和 CRC 指令计数，可运行：
+生成的位流位于 `build/vivado/rv32_realtime_scope.bit`，默认固件为 `build/hex/freertos.hex`。构建脚本会自动查找 `riscv32-unknown-elf-*`、`riscv-none-elf-*` 或 `riscv64-unknown-elf-*`；也可通过 `-ToolchainPrefix` 指定工具链前缀。旧的完整单循环示波器固件仍保留为 `scope.S`，用于兼容回归。
+
+如需同时检查 FreeRTOS 固件的 CAP2/CSV/VCD 导出和 CRC 指令计数，可运行：
 
 ```powershell
 .\scripts\test_hardware.ps1 -Port COM9 -OptionalDump
 ```
+
+硬件测试默认假设 JA9 跳接 JB1；若使用其他板载测试输出，可指定 `-ExpectedOutput`，例如当前接线为 JA1 时运行 `-ExpectedOutput JA1`。
+`test_hardware_soak.ps1` 会周期检查 UART、测量结果及 `cycle/instret` 计数器，并在 `build/hardware` 保存带时间戳的持续运行日志。
 
 > JB1 只允许接入 3.3 V LVCMOS 兼容数字信号。本项目没有模拟前端、衰减网络或过压保护，不能连接 5 V、RS-232、电源轨或未知电平。
 
@@ -89,10 +102,15 @@ python tools/capture_dump.py capture.cap2 capture.vcd --csv capture.csv
 
 ## 验证
 
-`scripts/test.ps1` 运行课程设计使用的三层验证：
+`scripts/test.ps1` 运行六层验证：
 
 1. `tb_cpu_trace` 与 Python 参考模型：`isa_test`、`hazard_test`、`crc_test`
-2. `tb_scope_core`：8 路固定测试波形、边沿测量、实时波形、深度采集和基础交互
-3. `tb_soc_realtime_scope`：集成验证 JA4/JA9 模拟跳线、CPU、`scope.S`、MMIO 和各外设
+2. `tb_machine_mode`：CSR、ECALL/EBREAK/MRET、精确 trap、宽度访存、未对齐异常、MSI/MTI 和 CLINT
+3. `tb_freertos_smoke`：官方 RISC-V port、四任务启动、阻塞切换、机器定时器 tick 和抢占式上下文保存（存在 `freertos.hex` 时运行）
+4. `tb_freertos_scope`：RTOS UART shell、RUN/HOLD、测量/性能响应、SINGLE、CAP2 与 `CRC16.B`
+5. `tb_scope_core`：8 路固定测试波形、边沿测量、实时波形、深度采集和基础交互
+6. `tb_soc_realtime_scope`：兼容验证 JA4/JA9 模拟跳线、CPU、`scope.S`、MMIO 和各外设
+
+`scripts/test_freertos.ps1` 会先用 GCC 重建 FreeRTOS，再执行全部 RTL/SoC 回归。
 
 模块关系和实现细节见 [系统架构](docs/architecture.md)，仿真分层与测试范围见 [仿真验证](src/sim/README.md)。

@@ -34,13 +34,13 @@ place_design -directive ExtraPostPlacementOpt
 phys_opt_design -directive AggressiveExplore
 route_design -directive AggressiveExplore
 
-# A marginal post-route result on this design is dominated by CPU forwarding
-# and ALU routing delay.  The plan requires investigation below +0.1 ns, so
-# give Vivado one legal timing-focused retry for both near misses and failures
-# before applying the hard timing gate below.  The clock constraint and path
-# exceptions are unchanged.
+# Give a genuinely marginal result one timing-focused retry before applying
+# the hard gate below.  Large violations need an RTL pipeline fix; post-route
+# physical optimization is not effective below roughly -0.5 ns.  The clock
+# constraint and path exceptions remain unchanged.
 set preliminary_setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $preliminary_setup_path] != 0 &&
+    [get_property SLACK $preliminary_setup_path] >= -0.500 &&
     [get_property SLACK $preliminary_setup_path] < 0.100} {
     puts "TIMING RETRY: post-route WNS=[get_property SLACK $preliminary_setup_path] ns"
     phys_opt_design -directive AggressiveExplore

@@ -91,7 +91,7 @@ $Xelab = Join-Path $VivadoBin "xelab.bat"
 $Xsim = Join-Path $VivadoBin "xsim.bat"
 
 New-Item -ItemType Directory -Path "build\hex" -Force | Out-Null
-foreach ($name in @("scope", "isa_test", "hazard_test", "crc_test")) {
+foreach ($name in @("scope", "isa_test", "hazard_test", "crc_test", "machine_test")) {
     Invoke-Checked $Python @(
         "sw\tools\rv32asm.py", "sw\firmware\$name.S", "build\hex\$name.hex"
     )
@@ -112,6 +112,7 @@ $RtlSources = @(
     "src\rtl\cpu\rv32_core.v",
     "src\rtl\memory\dmem.v",
     "src\rtl\memory\imem.v",
+    "src\rtl\peripheral\clint.v",
     "src\rtl\peripheral\button_debounce.v",
     "src\rtl\peripheral\button_mmio.v",
     "src\rtl\peripheral\edge_meter_scope.v",
@@ -132,6 +133,13 @@ $RtlSources = @(
 ) | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
 
 Invoke-DifferentialTests
+Invoke-XSimTest "tb_machine_mode" "src\sim\tb_machine_mode.v" "MACHINE MODE PASS"
+if (Test-Path -LiteralPath "build\hex\freertos.hex") {
+    Invoke-XSimTest "tb_freertos_smoke" "src\sim\tb_freertos_smoke.v" "FREERTOS SMOKE PASS"
+    Invoke-XSimTest "tb_freertos_scope" "src\sim\tb_freertos_scope.v" "FREERTOS SCOPE PASS"
+} else {
+    Write-Host "FREERTOS SMOKE SKIP: run scripts\build_freertos.ps1 first"
+}
 Invoke-XSimTest "tb_scope_core" "src\sim\tb_scope_core.v" "SCOPE CORE PASS"
 Invoke-XSimTest "tb_soc_realtime_scope" "src\sim\tb_soc_realtime_scope.v" "SOC REALTIME SCOPE PASS"
 

@@ -142,7 +142,9 @@ module mmio_decoder #(
   assign live_mode = live_mode_reg;
   assign live_edge = live_edge_reg;
   assign live_sample_div = live_sample_div_reg;
-  assign led = live_frame;
+  // GPIO remains visible for the RTOS heartbeat until software explicitly
+  // enables the live-scope waveform display.
+  assign led = live_control_enable_reg ? live_frame : gpio_led;
 
   always @(posedge clk) begin
     if (rst) begin

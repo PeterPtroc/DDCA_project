@@ -19,6 +19,7 @@ set production_sources [list \
     [file join $root src rtl cpu rv32_core.v] \
     [file join $root src rtl memory dmem.v] \
     [file join $root src rtl memory imem.v] \
+    [file join $root src rtl peripheral clint.v] \
     [file join $root src rtl peripheral button_debounce.v] \
     [file join $root src rtl peripheral button_mmio.v] \
     [file join $root src rtl peripheral edge_meter_scope.v] \

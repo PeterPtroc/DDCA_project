@@ -12,19 +12,30 @@ JB1 异步输入
         +---- 深度采集 ------ 4096×1 采样窗口
                                            |
                                            v
-五级流水 RV32 CPU <---------- MMIO --------+---- 八位数码管
+六级流水 RV32I/Zicsr CPU <---- MMIO --------+---- 八位数码管
         |                                  +---- UART
+        +---- M-mode / precise trap / CLINT
         +---- 数据前递 / 加载-使用停顿 / 分支冲刷
         +---- CRC16.B / 指令提交跟踪 / 性能计数器
 
 8 路固定测试计数器 ----------------------- JA1/2/3/4/7/8/9/10
 ```
 
-输入只经过一组 `input_sync`，三个模块共享同一个同步结果。实时数据通路不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时并保留原始的 `period_ticks` 和 `high_ticks`，`scope_capture` 管理环形采样窗口。CPU 运行 `scope.S`，处理示波器配置、按钮事件、数码管内容、UART 通信和深度采集传输。CPU 根据一致性快照计算 `low_ticks` 和 `frequency_hz`，再将缓存值用于显示和传输。JA 固定测试输出独立于 CPU 和 MMIO；复位释放后，8 路信号同时持续工作。
+输入只经过一组 `input_sync`，三个模块共享同一个同步结果。实时数据通路不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时并保留原始的 `period_ticks` 和 `high_ticks`，`scope_capture` 管理环形采样窗口。CPU 默认运行 FreeRTOS 应用，由测量、UI、UART 和采集四个任务处理示波器配置、按钮事件、数码管内容、UART 通信和深度采集传输；旧 `scope.S` 仅用于兼容回归。CPU 根据一致性快照计算 `low_ticks` 和 `frequency_hz`，再将队列中的快照用于显示和传输。JA 固定测试输出独立于 CPU 和 MMIO；复位释放后，8 路信号同时持续工作。
 
 ## CPU
 
-`rv32_core` 是五级流水 RV32 实现，支持 EX/WB 数据前递、加载-使用互锁、分支及控制冒险冲刷、自定义 `CRC16.B` 指令、架构级指令提交跟踪和性能事件计数。条件比较直接由 `funct3` 选择。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。`CPU_PC_NEXT_STYLE` 可以在 PC 时钟使能和显式 `pc_next` 两种写法间切换，用于时序对比。指令存储器默认加载 `build/hex/scope.hex`；三组定向测试固件通过独立的 Python 参考模型对 CPU 行为进行差分验证。
+`rv32_core` 是六级流水 `RV32I + Zicsr` 实现，流水级为 IF、ID、EX、数据请求、数据响应和 WB。除多级数据前递、加载-使用互锁、分支冲刷、自定义 `CRC16.B`、提交跟踪和性能事件外，还实现了机器态 CSR、`ECALL/EBREAK/MRET`、宽度访存与精确 trap。异常信息沿流水线传播到 WB，寄存器、CSR 和存储副作用都受提交点控制；中断只在一条有效指令退休后进入，因此 `mepc` 指向下一条尚未执行的指令。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。前递选择在 ID 阶段提前计算，避免把寄存器号比较器放在 EX 到 PC/ALU 的关键路径上。
+
+实现的 CSR 为 `mstatus/misa/mie/mtvec/mscratch/mepc/mcause/mtval/mip/mhartid/mcycle/minstret`（含两个 64 位计数器的高半 CSR）。异常覆盖非法指令、M-mode ECALL、EBREAK、指令地址未对齐和 load/store 未对齐；异步中断覆盖 MSI 和 MTI。处理器始终运行在 M-mode，不包含 S-mode、MMU、PMP、PLIC 或 RV32M。
+
+指令和数据存储器各为 64 KiB。取指端口在下降沿采样；EX 先寄存有效地址，再由数据请求级在上升沿访问同步 BRAM/MMIO，响应级保留对应元数据，下一上升沿才进入 WB。这样地址生成、外设译码和加载写回各自获得完整的 10 ns 周期。ROM 的第二只读端口映射到数据总线 `0x00000000..0x0000ffff`，供 C 运行时复制 `.data` 并访问 `.rodata`。RAM 位于 `0x10000000..0x1000ffff`，栈顶为 `0x10010000` 且保持 16 字节对齐。
+
+## Machine timer 与 FreeRTOS
+
+CLINT 使用标准地址：`msip=0x02000000`、`mtimecmp=0x02004000`、`mtime=0x0200bff8`。`mip.MTIP/MSIP` 直接反映外设电平；`mie` 与 `mstatus.MIE` 在提交边界共同决定是否进入中断。
+
+`sw/freertos` 使用 GCC `-march=rv32i_zicsr -mabi=ilp32` 和官方 FreeRTOS Kernel V11.3.1 RISC-V port。启动代码设置 `gp/sp`、复制 `.data`、清零 `.bss`、安装 `mtvec` 后进入 `main()`。应用拆分为 `measurement_task`、`ui_task`、`uart_task` 和 `capture_task`：测量快照通过单元素覆盖队列发布，SINGLE/导出请求通过任务通知投递，UART 互斥量保护 shell、遥测和 CAP2 传输。采集任务完成 4096 点打包并用 `CRC16.B` 逐字节计算校验；1 kHz tick 由 CLINT MTI 驱动。
 
 ## 实时波形与深度采集
 
@@ -40,6 +51,10 @@ JB1 异步输入
 
 | 基地址 | 外设 |
 | --- | --- |
+| `0x02000000` | CLINT `msip` |
+| `0x02004000` | CLINT `mtimecmp` |
+| `0x0200BFF8` | CLINT `mtime` |
+| `0x10000000` | 64 KiB 数据 RAM |
 | `0x40000000` | GPIO / 固件测试结果 |
 | `0x40001000` | UART |
 | `0x40002000` | 64 位计时器 |

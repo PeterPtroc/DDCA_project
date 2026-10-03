@@ -24,10 +24,10 @@ module tb_cpu_trace;
   wire [31:0] imem_rdata = imem[imem_addr[12:2]];
   wire dmem_valid;
   wire dmem_we;
+  wire [3:0] dmem_wstrb;
   wire [31:0] dmem_addr;
   wire [31:0] dmem_wdata;
-  wire [31:0] dmem_rdata =
-      (dmem_addr[31:12] == DATA_BASE[31:12]) ? dmem[dmem_addr[11:2]] : 32'd0;
+  reg [31:0] dmem_rdata = 32'd0;
   wire retire_valid;
   wire [31:0] retire_pc;
   wire [31:0] retire_insn;
@@ -42,9 +42,9 @@ module tb_cpu_trace;
   wire event_branch_taken;
   wire event_custom_crc;
 
-  reg previous_mem_we = 1'b0;
-  reg [31:0] previous_mem_addr = 32'd0;
-  reg [31:0] previous_mem_data = 32'd0;
+  reg previous_mem_we = 1'b0, previous2_mem_we = 1'b0;
+  reg [31:0] previous_mem_addr = 32'd0, previous2_mem_addr = 32'd0;
+  reg [31:0] previous_mem_data = 32'd0, previous2_mem_data = 32'd0;
 
   rv32_core dut (
       .clk(clk),
@@ -53,15 +53,20 @@ module tb_cpu_trace;
       .imem_rdata(imem_rdata),
       .dmem_valid(dmem_valid),
       .dmem_we(dmem_we),
+      .dmem_wstrb(dmem_wstrb),
       .dmem_addr(dmem_addr),
       .dmem_wdata(dmem_wdata),
       .dmem_rdata(dmem_rdata),
+      .machine_timer_irq(1'b0),
+      .machine_software_irq(1'b0),
       .retire_valid(retire_valid),
       .retire_pc(retire_pc),
       .retire_insn(retire_insn),
       .retire_rd_we(retire_rd_we),
       .retire_rd(retire_rd),
       .retire_rd_data(retire_rd_data),
+      .trap_taken(),
+      .trap_cause(),
       .event_stall_load(event_stall_load),
       .event_fwd_ex_count(event_fwd_ex_count),
       .event_fwd_wb_count(event_fwd_wb_count),
@@ -105,8 +110,12 @@ module tb_cpu_trace;
   always @(posedge clk) begin
     if (rst) begin
       previous_mem_we <= 1'b0;
+      previous2_mem_we <= 1'b0;
       previous_mem_addr <= 32'd0;
+      previous2_mem_addr <= 32'd0;
       previous_mem_data <= 32'd0;
+      previous2_mem_data <= 32'd0;
+      dmem_rdata <= 32'd0;
       cycles <= 0;
       retire_step <= 0;
       stall_count <= 0;
@@ -118,7 +127,7 @@ module tb_cpu_trace;
       if (cycles > 20000) $fatal(1, "CPU trace timeout after %0d retires", retire_step);
 
       if (retire_valid) begin
-        if ((retire_insn[6:0] == 7'b0100011) != previous_mem_we)
+        if ((retire_insn[6:0] == 7'b0100011) != previous2_mem_we)
           $fatal(1, "store/retire alignment mismatch at pc=%08x", retire_pc);
         $fdisplay(
             trace_fd,
@@ -129,16 +138,16 @@ module tb_cpu_trace;
             retire_rd_we && (retire_rd != 0),
             (retire_rd_we && (retire_rd != 0)) ? retire_rd : 0,
             (retire_rd_we && (retire_rd != 0)) ? retire_rd_data : 0,
-            previous_mem_we,
-            previous_mem_we ? previous_mem_addr : 0,
-            previous_mem_we ? previous_mem_data : 0
+            previous2_mem_we,
+            previous2_mem_we ? previous2_mem_addr : 0,
+            previous2_mem_we ? previous2_mem_data : 0
         );
         retire_step <= retire_step + 1;
 
-        if (previous_mem_we && previous_mem_addr == TEST_RESULT) begin
+        if (previous2_mem_we && previous2_mem_addr == TEST_RESULT) begin
           $fclose(trace_fd);
-          if (previous_mem_data != PASS_VALUE)
-            $fatal(1, "firmware FAIL result=%08x", previous_mem_data);
+          if (previous2_mem_data != PASS_VALUE)
+            $fatal(1, "firmware FAIL result=%08x", previous2_mem_data);
           $fdisplay(metrics_fd, "%0d,%0d,%0d,%0d",
               cycles + 1, retire_step + 1,
               stall_count + (event_stall_load ? 1 : 0),
@@ -153,11 +162,21 @@ module tb_cpu_trace;
         end
       end
 
+      previous2_mem_we <= previous_mem_we;
+      previous2_mem_addr <= previous_mem_addr;
+      previous2_mem_data <= previous_mem_data;
       previous_mem_we <= dmem_valid && dmem_we;
       previous_mem_addr <= dmem_addr;
       previous_mem_data <= dmem_wdata;
-      if (dmem_valid && dmem_we && dmem_addr[31:12] == DATA_BASE[31:12])
-        dmem[dmem_addr[11:2]] <= dmem_wdata;
+      if (dmem_valid && !dmem_we)
+        dmem_rdata <= (dmem_addr[31:12] == DATA_BASE[31:12]) ?
+                      dmem[dmem_addr[11:2]] : 32'd0;
+      if (dmem_valid && dmem_we && dmem_addr[31:12] == DATA_BASE[31:12]) begin
+        if (dmem_wstrb[0]) dmem[dmem_addr[11:2]][7:0] <= dmem_wdata[7:0];
+        if (dmem_wstrb[1]) dmem[dmem_addr[11:2]][15:8] <= dmem_wdata[15:8];
+        if (dmem_wstrb[2]) dmem[dmem_addr[11:2]][23:16] <= dmem_wdata[23:16];
+        if (dmem_wstrb[3]) dmem[dmem_addr[11:2]][31:24] <= dmem_wdata[31:24];
+      end
     end
   end
 endmodule

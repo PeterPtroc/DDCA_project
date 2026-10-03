@@ -32,9 +32,30 @@ REG = {
 }
 REG.update({f"x{i}": i for i in range(32)})
 
+CSR = {
+    "mstatus": 0x300,
+    "misa": 0x301,
+    "mie": 0x304,
+    "mtvec": 0x305,
+    "mscratch": 0x340,
+    "mepc": 0x341,
+    "mcause": 0x342,
+    "mtval": 0x343,
+    "mip": 0x344,
+    "mcycle": 0xB00,
+    "minstret": 0xB02,
+    "mcycleh": 0xB80,
+    "minstreth": 0xB82,
+    "mhartid": 0xF14,
+}
+
 
 def reg(s):
     return REG[s.lower()]
+
+
+def csr(s):
+    return CSR.get(s.lower(), int(s, 0) if s.lower() not in CSR else CSR[s.lower()])
 
 
 def num(s, labels, pc):
@@ -74,6 +95,16 @@ def expand_pseudo(s):
         return [f"jal ra, {p[1]}"]
     if m == "ret":
         return ["jalr x0, 0(ra)"]
+    if m == "la":
+        return [f"lui {p[1]}, {p[2]}", f"addi {p[1]}, {p[1]}, {p[2]}"]
+    if m == "csrr":
+        return [f"csrrs {p[1]}, {p[2]}, x0"]
+    if m == "csrw":
+        return [f"csrrw x0, {p[1]}, {p[2]}"]
+    if m == "csrs":
+        return [f"csrrs x0, {p[1]}, {p[2]}"]
+    if m == "csrc":
+        return [f"csrrc x0, {p[1]}, {p[2]}"]
     return [s]
 
 
@@ -147,7 +178,12 @@ def assemble(lines):
                 "srli": 5,
                 "srai": 5,
             }[m]
-            imm = int(p[3], 0)
+            if p[3] in labels:
+                absolute = labels[p[3]]
+                upper = (absolute + 0x800) >> 12
+                imm = absolute - (upper << 12)
+            else:
+                imm = int(p[3], 0)
             if m == "srai":
                 imm |= 0x400
             v = (
@@ -157,30 +193,36 @@ def assemble(lines):
                 | (reg(p[1]) << 7)
                 | 0x13
             )
-        elif m in ("lw", "sw"):
+        elif m in ("lb", "lh", "lw", "lbu", "lhu", "sb", "sh", "sw"):
             imm = int(p[2], 0)
             rs1 = reg(p[3])
             rs2_or_rd = reg(p[1])
-            if m == "lw":
+            if m in ("lb", "lh", "lw", "lbu", "lhu"):
+                f3 = {"lb": 0, "lh": 1, "lw": 2, "lbu": 4, "lhu": 5}[m]
                 v = (
                     ((imm & 0xFFF) << 20)
                     | (rs1 << 15)
-                    | (2 << 12)
+                    | (f3 << 12)
                     | (rs2_or_rd << 7)
                     | 3
                 )
             else:
+                f3 = {"sb": 0, "sh": 1, "sw": 2}[m]
                 v = (
                     (((imm >> 5) & 0x7F) << 25)
                     | (rs2_or_rd << 20)
                     | (rs1 << 15)
-                    | (2 << 12)
+                    | (f3 << 12)
                     | ((imm & 0x1F) << 7)
                     | 0x23
                 )
         elif m in ("lui", "auipc"):
+            if p[2] in labels:
+                immediate = (labels[p[2]] + 0x800) >> 12
+            else:
+                immediate = int(p[2], 0)
             v = (
-                ((int(p[2], 0) & 0xFFFFF) << 12)
+                ((immediate & 0xFFFFF) << 12)
                 | (reg(p[1]) << 7)
                 | (0x37 if m == "lui" else 0x17)
             )
@@ -217,6 +259,24 @@ def assemble(lines):
             v = ((imm & 0xFFF) << 20) | (rs1 << 15) | (reg(p[1]) << 7) | 0x67
         elif m == "crc16.b":
             v = (reg(p[3]) << 20) | (reg(p[2]) << 15) | (reg(p[1]) << 7) | 0x0B
+        elif m in ("csrrw", "csrrs", "csrrc"):
+            f3 = {"csrrw": 1, "csrrs": 2, "csrrc": 3}[m]
+            v = (csr(p[2]) << 20) | (reg(p[3]) << 15) | (f3 << 12) | \
+                (reg(p[1]) << 7) | 0x73
+        elif m in ("csrrwi", "csrrsi", "csrrci"):
+            f3 = {"csrrwi": 5, "csrrsi": 6, "csrrci": 7}[m]
+            v = (csr(p[2]) << 20) | ((int(p[3], 0) & 0x1F) << 15) | \
+                (f3 << 12) | (reg(p[1]) << 7) | 0x73
+        elif m == "ecall":
+            v = 0x00000073
+        elif m == "ebreak":
+            v = 0x00100073
+        elif m == "mret":
+            v = 0x30200073
+        elif m == "fence":
+            v = 0x0FF0000F
+        elif m == "fence.i":
+            v = 0x0000100F
         else:
             raise ValueError(f"unsupported instruction: {s}")
         out.append(v & 0xFFFFFFFF)
