@@ -3,6 +3,7 @@
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 cd $root
+source [file join $script_dir check_firmware.tcl]
 set build_dir [file join $root build vivado]
 file mkdir $build_dir
 create_project rv32_realtime_scope $build_dir -part xc7a100tcsg324-1 -force
@@ -41,5 +42,5 @@ set production_sources [list \
 add_files -norecurse $production_sources
 add_files -fileset constrs_1 -norecurse [file join $root constraints nexys_a7_100t.xdc]
 set_property top nexys_a7_top [current_fileset]
-update_compile_order -fileset sources_1
+source [file join $script_dir configure_firmware.tcl]
 puts "Vivado project created at $build_dir"

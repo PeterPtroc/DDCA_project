@@ -2,6 +2,9 @@
 build/*
 !build/.gitkeep
 
+# Downloaded machine-local toolchain and ZIP cache
+/tools/.local/
+
 # Vivado project, synthesis and implementation output
 *.xpr
 *.xsa

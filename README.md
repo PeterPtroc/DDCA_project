@@ -1,5 +1,41 @@
 # RV32 实时数字示波分析仪
 
+## 快速启动
+
+安装Python 3并确保python.exe已加入 PATH。
+
+### 1. 编译固件
+
+双击根目录的 `build_freertos.bat`，或在终端运行：
+
+```powershell
+.\build_freertos.bat
+```
+
+
+### 2. 打开vivado项目
+
+```powershell
+.\open_vivado_gui.bat
+```
+（或者双击打开）
+需要按提示填入vivado安装路径
+
+请先编译固件；固件缺失时会直接报错。
+
+或者使用无头
+```powershell
+vivado -mode batch -source scripts/build_bitstream.tcl
+```
+
+### 3. 下载到板卡
+
+
+生成bitstream后，使用 Vivado GUI 的 Hardware Manager 下载到板卡即可。
+
+
+## 项目概述
+
 本项目在 Nexys A7-100T 上实现一套单通道实时数字示波分析仪，并提供 8 路固定板载测试信号。系统只接收 3.3 V 数字信号：唯一的测量输入 JB1 经同步后，同时送入实时波形、边沿测量和 4096 点深度采集模块。RV32 CPU 负责示波器配置、板载交互、UART 通信和采集管理。
 
 ```text
@@ -44,17 +80,16 @@ JA1/2/3/4/7/8/9/10 <- 8 路固定测试信号（持续输出）
 
 JA 是 12 针 Pmod 接口：JA1–JA4、JA7–JA10 是上述 8 路数字输出；JA5/JA11 是 GND，JA6/JA12 是 3.3 V 电源，不能作为额外信号输出。JA4 受 100 MHz 整数时钟计数限制，实际输出为 14,242.985 Hz、50.007%。
 
+项目创建、编译和 JTAG 下载按前文 [快速启动](#快速启动) 执行。完成接线与下载后，可运行串口验证；将 `COM9` 替换为设备管理器中板卡对应的串口号：
+
 ```powershell
-.\scripts\build_freertos.ps1
-.\scripts\test.ps1
-vivado -mode batch -source scripts/create_vivado_project.tcl
-vivado -mode batch -source scripts/build_bitstream.tcl
-vivado -mode batch -source scripts/program_analyzer.tcl
 .\scripts\test_hardware.ps1 -Port COM9
 .\scripts\test_hardware_soak.ps1 -Port COM9 -DurationMinutes 10
 ```
 
-生成的位流位于 `build/vivado/rv32_realtime_scope.bit`，默认固件为 `build/hex/freertos.hex`。构建脚本会自动查找 `riscv32-unknown-elf-*`、`riscv-none-elf-*` 或 `riscv64-unknown-elf-*`；也可通过 `-ToolchainPrefix` 指定工具链前缀。旧的完整单循环示波器固件仍保留为 `scope.S`，用于兼容回归。
+固件编译需要 64 位 Windows、PowerShell 5.1 或 7，以及已加入 PATH 的 Python 3。直接运行 `.\scripts\build_freertos.ps1` 即可：首次调用会自动从 GitHub 下载固定的 xPack RISC-V GCC **15.2.0-1** ZIP，校验 SHA-256 后解压到 `tools/.local/`；以后复用本地工具链，可离线编译。版本、下载地址与校验值记录在 [tools/toolchain.json](tools/toolchain.json)，工具链和下载缓存均由 Git 忽略。也可提前运行 `.\scripts\setup_toolchain.ps1` 安装工具链。
+
+生成的位流位于 `build/vivado/rv32_realtime_scope.bit`，默认固件为 `build/hex/freertos.hex`。已有工具链可通过 `-ToolchainPrefix` 指定，或设置 `RISCV_TOOLCHAIN_PREFIX` 环境变量；显式参数优先，两者均会跳过自动安装。旧的完整单循环示波器固件仍保留为 `scope.S`，用于兼容回归。
 
 如需同时检查 FreeRTOS 固件的 CAP2/CSV/VCD 导出和 CRC 指令计数，可运行：
 

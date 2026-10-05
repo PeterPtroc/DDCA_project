@@ -22,6 +22,7 @@ if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
 set "LOCAL_CONFIG=%ROOT%\scripts\vivado_local.bat"
 set "CREATE_TCL=%ROOT%\scripts\create_vivado_project.tcl"
+set "OPEN_GUI_TCL=%ROOT%\scripts\open_vivado_project.tcl"
 set "PROJECT_FILE=%ROOT%\build\vivado\rv32_realtime_scope.xpr"
 
 echo ============================================================
@@ -40,6 +41,13 @@ if not exist "%CREATE_TCL%" (
     echo   %CREATE_TCL%
     echo.
     echo Make sure open_vivado_gui.bat is located in the repository root.
+    pause
+    exit /b 1
+)
+
+if not exist "%OPEN_GUI_TCL%" (
+    echo ERROR: Repository file not found:
+    echo   %OPEN_GUI_TCL%
     pause
     exit /b 1
 )
@@ -197,45 +205,8 @@ where vivado
 echo.
 
 rem ============================================================
-rem 7. Create the Vivado project if it does not exist.
+rem 7. Open or create the project and refresh firmware configuration.
 rem ============================================================
-
-if exist "%PROJECT_FILE%" goto :open_gui
-
-echo Creating Vivado project...
-echo.
-
-pushd "%ROOT%"
-
-vivado -mode batch -source "%CREATE_TCL%"
-set "VIVADO_EXIT=%ERRORLEVEL%"
-
-popd
-
-if not "%VIVADO_EXIT%"=="0" (
-    echo.
-    echo ERROR: Failed to create Vivado project.
-    pause
-    exit /b %VIVADO_EXIT%
-)
-
-if not exist "%PROJECT_FILE%" (
-    echo.
-    echo ERROR: Vivado completed but the project file was not created:
-    echo   %PROJECT_FILE%
-    pause
-    exit /b 1
-)
-
-echo.
-echo Vivado project created successfully.
-
-
-rem ============================================================
-rem 8. Open Vivado GUI.
-rem ============================================================
-
-:open_gui
 
 echo.
 echo Opening Vivado GUI:
@@ -243,7 +214,7 @@ echo   %PROJECT_FILE%
 echo.
 
 pushd "%ROOT%"
-vivado "%PROJECT_FILE%"
+call vivado -mode gui -source "%OPEN_GUI_TCL%"
 set "VIVADO_EXIT=%ERRORLEVEL%"
 popd
 

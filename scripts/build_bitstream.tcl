@@ -21,12 +21,12 @@ if {![file exists $project_file]} {
 
 file mkdir $report_dir
 open_project $project_file
+source [file join $script_dir configure_firmware.tcl]
 
-# Keep the direct flow in the repository root so imem's generated firmware path
-# resolves identically in simulation and synthesis.
+# Keep output locations consistent with the repository's batch workflow.
 cd $root
 synth_design -top nexys_a7_top -part xc7a100tcsg324-1 \
-    -generic CPU_PC_NEXT_STYLE=$pc_next_style
+    -generic [list CPU_PC_NEXT_STYLE=$pc_next_style "IMEM_HEX=\"$ddca_firmware_file\""]
 puts "SYNTHESIS PASS"
 write_checkpoint -force [file join $build_dir rv32_realtime_scope_synth.dcp]
 opt_design

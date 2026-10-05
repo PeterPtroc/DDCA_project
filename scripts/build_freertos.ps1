@@ -18,29 +18,32 @@ function Invoke-Checked {
 
 function Find-Tool {
     param([string]$Suffix)
-    $prefixes = @()
-    if ($ToolchainPrefix) { $prefixes += $ToolchainPrefix }
-    if ($env:RISCV_TOOLCHAIN_PREFIX) { $prefixes += $env:RISCV_TOOLCHAIN_PREFIX }
-    $prefixes += @("riscv32-unknown-elf", "riscv-none-elf", "riscv64-unknown-elf")
-    foreach ($prefix in $prefixes) {
-        $candidate = "$prefix-$Suffix"
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($command) { return $command.Source }
-        if (Test-Path -LiteralPath $candidate) {
-            return (Resolve-Path -LiteralPath $candidate).Path
-        }
-        if (Test-Path -LiteralPath "$candidate.exe") {
-            return (Resolve-Path -LiteralPath "$candidate.exe").Path
-        }
+    $candidate = "$ToolchainPrefix-$Suffix"
+    $command = Get-Command $candidate -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($command) { return $command.Source }
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        return (Resolve-Path -LiteralPath $candidate).Path
     }
-    throw "RISC-V GCC toolchain not found. Install riscv32-unknown-elf-gcc or pass -ToolchainPrefix."
+    if (Test-Path -LiteralPath "$candidate.exe" -PathType Leaf) {
+        return (Resolve-Path -LiteralPath "$candidate.exe").Path
+    }
+    throw "RISC-V tool not found: $candidate. Check -ToolchainPrefix or RISCV_TOOLCHAIN_PREFIX."
 }
+
+$PythonCommand = Get-Command python.exe -CommandType Application -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if (-not $PythonCommand) {
+    throw "Python 3 is required to generate the firmware HEX. Install Python 3 and add python.exe to PATH."
+}
+$Python = $PythonCommand.Source
+if (-not $ToolchainPrefix) { $ToolchainPrefix = $env:RISCV_TOOLCHAIN_PREFIX }
+if (-not $ToolchainPrefix) { $ToolchainPrefix = & "$PSScriptRoot\setup_toolchain.ps1" }
 
 $Gcc = Find-Tool "gcc"
 $Objcopy = Find-Tool "objcopy"
 $Objdump = Find-Tool "objdump"
 $Size = Find-Tool "size"
-$Python = (Get-Command python.exe -ErrorAction Stop).Source
 
 $Out = Join-Path $Root "build\freertos"
 $HexDir = Join-Path $Root "build\hex"
