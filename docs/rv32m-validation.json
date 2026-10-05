@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-05",
+  "baseline_commit": "80cc06f144e8c954c662490dbeac25e489bfda8d",
+  "tool": "Vivado 2024.2 XSim",
+  "part": "xc7a100tcsg324-1",
+  "baseline_regression": "PASS",
+  "rv32m_regression": "PASS",
+  "unit_vectors": 5248,
+  "isa_retires_per_pc_style": 10001,
+  "multicycle_irq_cases": 648,
+  "original_precise_irq_cases": 80,
+  "control_cancel_cases": 6,
+  "internal_ooc_clock_mhz": 100,
+  "internal_ooc_wns_ns": 0.261,
+  "internal_ooc_whs_ns": 0.055,
+  "board_integration_verified": false,
+  "sha256": {
+    "src/rtl/cpu/rv32im_core.v": "9512542e77cb1985ba43375e7eba632925da85ed6b47ce576f72c9c1af69ecfe",
+    "src/rtl/cpu/rv32im_decoder.v": "4c756d6513337b5496117ff1c159e786c8762a5116467c5f8df097df5ae2ddfc",
+    "src/rtl/cpu/rv32m_unit.v": "8302ed2293e5ae89c990a1733febe2678996a4c27df57bba21c14e66a451e908",
+    "src/sim/tb_rv32m_unit.v": "433821c9d4b5e59a654f3e09864312e3971f5a2d5ca168bc8e56623cd7014c44",
+    "src/sim/tb_rv32m_trace.v": "994426e1ebef49316d669172b41bdd4c7336727d7f39eb9da6aa4aa7626ca9b4",
+    "src/sim/tb_rv32m_irq.v": "a675184bf3aa675534261dbbf618cf7f041ebc9d873dab57080b1957a220266a",
+    "src/sim/tb_rv32m_control.v": "55f05744702a33a8a6479197c8583e872fde075137869b2c88ec734a066a46ca",
+    "sw/tools/rv32m_ref.py": "e529c0a6184db8030200943b5c8b178d968b7821f16e95188dae9849fbf2cde0",
+    "sw/tools/gen_rv32m_tests.py": "bfbe78f10e017a531c0bb2cab928720c63774624da20fc02f21dc076dbb0b12b",
+    "scripts/test_rv32m.ps1": "bbc6359802a52bb46c6b513d65ef7365f1f3640c7e02e745c7c36e33a856e784",
+    "scripts/check_rv32m_timing.tcl": "44d8443a913dd53dfa10ed3987b72c1882f11e39ff20e80e5dd5cc6a79bf5f0c",
+    "build/rv32m/isa.hex": "42f30484cb29215efff0b8f668a0956be8566f331c18b15405bebf0d2b55b6b3",
+    "build/rv32m/vectors.txt": "635e5292a6bf8bf3cbb0c70bb1aedcca4bbb8c180b9df147c35ca80020c1a896",
+    "build/hex/freertos.hex": "40194ed20b744df73a317873007401e6b12b64f2dd5557d756b565f713d0d503"
+  }
+}
