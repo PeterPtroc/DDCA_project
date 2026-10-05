@@ -220,6 +220,7 @@ module tb_scope_core;
 
   integer i;
   reg [31:0] saved_frame_count;
+  reg [11:0] saved_capture_ptr;
 
   initial begin
     clocks(3);
@@ -335,6 +336,10 @@ module tb_scope_core;
       capture_signal = 1'b0;
       @(posedge clk);
     end
+    // Configuration changes while waiting for a trigger apply to the next
+    // acquisition. This one must still trigger on rising at divider 1.
+    capture_write(6'h08, 1);
+    capture_write(6'h0c, 500);
     @(negedge clk); capture_signal = 1'b1; #1;
     @(posedge clk); #1;
     capture_signal = 1'b0;
@@ -343,6 +348,12 @@ module tb_scope_core;
         capture_trigger_index !== 12'd2048)
       $fatal(1, "deep capture mismatch done=%b count=%0d trigger=%0d",
           capture_done, capture_count, capture_trigger_index);
+    capture_off = 6'h24;
+    #1;
+    if (capture_rdata != 0) $fatal(1, "active trigger edge changed during capture");
+    capture_off = 6'h28;
+    #1;
+    if (capture_rdata != 1) $fatal(1, "active sample divider changed during capture");
     capture_window_sel = 1'b1;
     capture_window_index = 12'd2047;
     #1;
@@ -352,6 +363,44 @@ module tb_scope_core;
     #1;
     if (capture_display_sample[0] !== 1'b1)
       $fatal(1, "trigger sample missing at index 2048");
+
+    // The next arm must pick up the new configuration.
+    capture_window_sel = 0;
+    capture_write(6'h00, 1);
+    capture_off = 6'h24;
+    #1;
+    if (capture_rdata != 1) $fatal(1, "new capture did not latch falling edge");
+    capture_off = 6'h28;
+    #1;
+    if (capture_rdata != 500) $fatal(1, "new capture did not latch divider 500");
+    capture_write(6'h00, 2);
+
+    // A cancel coincident with the last trigger sample must win over done.
+    capture_write(6'h10, 3);
+    capture_write(6'h20, 2);
+    capture_write(6'h08, 0);
+    capture_write(6'h0c, 1);
+    capture_write(6'h00, 1);
+    clocks(3);
+    // A no-op control write must preserve the sampling interval.
+    @(negedge clk);
+    saved_capture_ptr = capture_dut.write_ptr;
+    capture_off = 0;
+    capture_wdata = 0;
+    capture_we = 1;
+    @(negedge clk);
+    capture_we = 0;
+    if (capture_dut.write_ptr != saved_capture_ptr + 12'd1)
+      $fatal(1, "no-op control write dropped a capture sample");
+    @(negedge clk);
+    capture_signal = 1;
+    capture_off = 0;
+    capture_wdata = 2;
+    capture_we = 1;
+    @(negedge clk);
+    capture_we = 0;
+    if (capture_armed || capture_triggered || capture_done || capture_count != 0)
+      $fatal(1, "same-cycle cancel/trigger did not clear capture state");
 
     // UI register/event behavior and the primary RUN/HOLD/SIGNAL states.
     ui_switches = 16'hd39a;

@@ -49,6 +49,9 @@ def transact(link, args) -> None:
     elif args.command in {"run", "hold", "single"}:
         link.write({"run": b"r", "hold": b"h", "single": b"1"}[args.command])
         print(f"{args.command} requested")
+    elif args.command == "cancel":
+        link.write(b"c")
+        print(read_line(link).decode("ascii", "replace").rstrip())
     elif args.command == "measure":
         link.write(b"m")
         status, frequency, period, high, low = read_measurement(link)
@@ -70,11 +73,22 @@ def transact(link, args) -> None:
         print(" ".join(f"{name}={value}" for name, value in zip(names, values)))
     elif args.command == "dump":
         link.write(b"d")
-        prefix = read_exact(link, HEADER.size)
-        if prefix[:4] != b"CAP2":
-            raise RuntimeError("invalid capture response")
-        count = struct.unpack_from("<H", prefix, 6)[0]
-        packet = prefix + read_exact(link, (count + 7) // 8 + 2)
+        try:
+            magic = read_exact(link, 4)
+            if magic == b"ERR2":
+                error = read_line(link).decode("ascii", "replace").strip()
+                raise RuntimeError(f"capture failed: {error}")
+            if magic != b"CAP2":
+                raise RuntimeError("invalid capture response")
+            prefix = magic + read_exact(link, HEADER.size - 4)
+            count = struct.unpack_from("<H", prefix, 6)[0]
+            packet = prefix + read_exact(link, (count + 7) // 8 + 2)
+        except TimeoutError:
+            # The board continues acquiring after a host read times out unless
+            # the request is explicitly cancelled.
+            link.write(b"c")
+            link.flush()
+            raise
         header, samples = parse_capture_packet(packet)
         if args.packet:
             args.packet.write_bytes(packet)
@@ -92,13 +106,14 @@ def transact(link, args) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", required=True, help="serial port, for example COM9")
-    parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument("--timeout", type=float, default=10.0)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
     commands.add_parser("measure")
     commands.add_parser("run")
     commands.add_parser("hold")
     commands.add_parser("single")
+    commands.add_parser("cancel")
     commands.add_parser("perf")
     dump = commands.add_parser("dump")
     dump.add_argument("--output", type=Path, default=Path("capture.csv"))

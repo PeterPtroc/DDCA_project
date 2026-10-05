@@ -23,6 +23,8 @@ module scope_capture (
   localparam [12:0] PRETRIGGER = 13'd2048;
   reg trigger_edge;
   reg [31:0] sample_div;
+  reg active_trigger_edge;
+  reg [31:0] active_sample_div;
   reg [31:0] div_count;
   reg prev_signal;
   reg [11:0] write_ptr;
@@ -39,11 +41,12 @@ module scope_capture (
   // The chronological MMIO window is asynchronous, so this intentionally
   // maps to LUTRAM rather than pretending it can infer a synchronous BRAM.
   (* ram_style = "distributed" *) reg [7:0] mem [0:4095];
-  wire sample_tick = (div_count >= ((sample_div == 0) ? 32'd1 : sample_div) - 1'b1);
+  wire [31:0] sampling_div = armed ? active_sample_div : sample_div;
+  wire sample_tick = (div_count >= sampling_div - 1'b1);
   // Trigger detection runs at the full 100 MHz clock. Restricting it to
   // sample_tick can alias a valid periodic input to a constant level and leave
   // SINGLE/dump armed forever when sample_div shares a factor with the period.
-  wire edge_hit = trigger_edge ? (prev_signal && !scope_signal)
+  wire edge_hit = active_trigger_edge ? (prev_signal && !scope_signal)
                                 : (!prev_signal && scope_signal);
   wire [11:0] window_addr = base_ptr + window_index;
   assign display_sample = mem[window_addr];
@@ -62,6 +65,8 @@ module scope_capture (
         6'h18: rdata = {20'd0, trigger_index};
         6'h1c: rdata = sample_div;
         6'h20: rdata = {19'd0, compat_pretrigger};
+        6'h24: rdata = {31'd0, active_trigger_edge};
+        6'h28: rdata = active_sample_div;
         default: rdata = 32'd0;
       endcase
     end
@@ -71,6 +76,8 @@ module scope_capture (
     if (rst) begin
       trigger_edge <= 1'b0;
       sample_div <= 32'd1;
+      active_trigger_edge <= 1'b0;
+      active_sample_div <= 32'd1;
       div_count <= 32'd0;
       prev_signal <= 1'b0;
       write_ptr <= 12'd0;
@@ -116,6 +123,8 @@ module scope_capture (
               div_count <= 32'd0;
               prev_signal <= scope_signal;
               active_depth <= compat_depth;
+              active_trigger_edge <= trigger_edge;
+              active_sample_div <= sample_div;
               active_pretrigger <= (compat_pretrigger == 0 && compat_depth == 13'd4096) ?
                   13'd2048 : compat_pretrigger;
               depth <= compat_depth;
@@ -135,7 +144,8 @@ module scope_capture (
         endcase
       end
 
-      if (armed && !done) begin
+      // Reset/rearm has priority over a sample or trigger on the same edge.
+      if (armed && !done && !(we && off == 6'h00 && (|wdata[1:0]))) begin
         if (!triggered && edge_hit && pre_filled >= active_pretrigger) begin
           // Capture the full-rate edge immediately, then restart the divider so
           // all post-trigger samples retain the selected timebase spacing.

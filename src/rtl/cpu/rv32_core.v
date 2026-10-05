@@ -80,6 +80,7 @@ module rv32_core #(
   // BRAM/MMIO reads.  Besides closing timing, this gives each target a full
   // cycle to produce its response before MEM/WB captures it.
   reg mem2_valid;
+  reg mem2_dmem_issued;
   reg [31:0] mem2_pc, mem2_insn, mem2_alu;
   reg [31:0] mem2_next_pc;
   reg [4:0] mem2_rd;
@@ -108,6 +109,8 @@ module rv32_core #(
   reg [31:0] csr_mstatus, csr_mie, csr_mtvec, csr_mscratch;
   reg [31:0] csr_mepc, csr_mcause, csr_mtval;
   reg [63:0] csr_mcycle, csr_minstret;
+  reg irq_drain_pending;
+  reg [31:0] irq_drain_cause;
 
   function csr_implemented;
     input [11:0] addr;
@@ -348,12 +351,19 @@ module rv32_core #(
   wire timer_irq_pending = irq_enabled && effective_mie[7] && machine_timer_irq;
   wire any_irq_pending = software_irq_pending || timer_irq_pending;
   wire take_exception = memwb_valid && memwb_exc_valid;
+  // A request in MEM2 has already affected BRAM/MMIO, including reads that
+  // clear device state. It must retire before an interrupt can flush it.
+  wire outstanding_side_effect = mem2_valid && mem2_dmem_issued;
   wire take_interrupt = memwb_valid && !memwb_exc_valid && !memwb_is_mret &&
-                        any_irq_pending;
+                        (any_irq_pending || irq_drain_pending) &&
+                        !outstanding_side_effect;
   wire take_mret = memwb_valid && !memwb_exc_valid && memwb_is_mret;
   wire take_fence_i = memwb_valid && !memwb_exc_valid && memwb_fence_i;
   wire commit_redirect = take_exception || take_interrupt || take_mret || take_fence_i;
-  wire [31:0] interrupt_cause = software_irq_pending ? CAUSE_MSI : CAUSE_MTI;
+  wire interrupt_drain = (any_irq_pending || irq_drain_pending) &&
+      outstanding_side_effect && !commit_redirect;
+  wire [31:0] interrupt_cause = irq_drain_pending ? irq_drain_cause :
+      software_irq_pending ? CAUSE_MSI : CAUSE_MTI;
   wire [31:0] commit_target = (take_exception || take_interrupt) ? effective_mtvec :
       take_mret ? csr_mepc : memwb_next_pc;
 
@@ -375,14 +385,15 @@ module rv32_core #(
   // Data requests are launched from the registered EX/MEM stage.  The
   // synchronous target samples that address at the following edge; MEM2 holds
   // the matching metadata while the response gets a full cycle to MEM/WB.
-  // Stores are allowed to take effect only when no older instruction can
-  // still redirect or trap.
+  // No new request may issue during the interrupt drain. The already issued
+  // request advances to WB while younger instructions wait, then the trap
+  // resumes after that request. Retain the sampled cause even for a pulse IRQ.
   wire older_side_effect_barrier =
       (mem2_valid && (mem2_exc_valid || mem2_is_mret || mem2_fence_i));
 
   assign imem_addr = pc;
   assign dmem_valid = exmem_valid && !exmem_exc_valid && !commit_redirect &&
-                      !older_side_effect_barrier &&
+                      !older_side_effect_barrier && !interrupt_drain &&
                       (exmem_mem_we || exmem_mem_re);
   assign dmem_we = dmem_valid && exmem_mem_we;
   assign dmem_wstrb = dmem_we ? store_strobe : 4'b0000;
@@ -402,8 +413,8 @@ module rv32_core #(
   assign event_fwd_wb_count =
       {1'b0, (fwd_a == 2 || fwd_a == 3)} +
       {1'b0, (fwd_b == 2 || fwd_b == 3)};
-  assign event_flush = commit_redirect || redirect || jal_id_redirect;
-  assign event_branch = idex_valid && !ex_exc_valid && idex_branch;
+  assign event_flush = commit_redirect || (!interrupt_drain && (redirect || jal_id_redirect));
+  assign event_branch = idex_valid && !ex_exc_valid && idex_branch && !interrupt_drain;
   assign event_branch_taken = event_branch && branch_cmp;
   assign event_custom_crc = retire_valid && memwb_is_crc;
 
@@ -414,7 +425,10 @@ module rv32_core #(
       idex_valid <= 1'b0;
       exmem_valid <= 1'b0;
       mem2_valid <= 1'b0;
+      mem2_dmem_issued <= 1'b0;
       memwb_valid <= 1'b0;
+      irq_drain_pending <= 1'b0;
+      irq_drain_cause <= 32'd0;
       csr_mstatus <= 32'd0;
       csr_mie <= 32'd0;
       csr_mtvec <= 32'd0;
@@ -427,6 +441,10 @@ module rv32_core #(
     end else begin
       csr_mcycle <= csr_mcycle + 64'd1;
       if (retire_valid) csr_minstret <= csr_minstret + 64'd1;
+      if (any_irq_pending && !commit_redirect) begin
+        irq_drain_pending <= 1'b1;
+        irq_drain_cause <= interrupt_cause;
+      end
 
       if (memwb_valid && !memwb_exc_valid && memwb_csr_we) begin
         case (memwb_csr_addr)
@@ -457,6 +475,7 @@ module rv32_core #(
       end
 
       if (commit_redirect) begin
+        irq_drain_pending <= 1'b0;
         pc <= commit_target;
         ifid_valid <= 1'b0;
         idex_valid <= 1'b0;
@@ -464,103 +483,109 @@ module rv32_core #(
         mem2_valid <= 1'b0;
         memwb_valid <= 1'b0;
       end else begin
-        if (CPU_PC_NEXT_STYLE != 0) begin
-          pc <= pc_next;
+        if (interrupt_drain) begin
+          mem2_valid <= 1'b0;
+          mem2_dmem_issued <= 1'b0;
         end else begin
-          if (redirect) pc <= redirect_target;
-          else if (jal_id_redirect) pc <= jal_id_target;
-          else if (!load_stall) pc <= pc + 32'd4;
+          if (CPU_PC_NEXT_STYLE != 0) begin
+            pc <= pc_next;
+          end else begin
+            if (redirect) pc <= redirect_target;
+            else if (jal_id_redirect) pc <= jal_id_target;
+            else if (!load_stall) pc <= pc + 32'd4;
+          end
+
+          if (redirect) begin
+            ifid_valid <= 1'b0;
+            idex_valid <= 1'b0;
+          end else if (jal_id_redirect) begin
+            ifid_valid <= 1'b0;
+            idex_valid <= ifid_valid;
+          end else if (load_stall) begin
+            idex_valid <= 1'b0;
+          end else begin
+            ifid_valid <= 1'b1;
+            idex_valid <= ifid_valid;
+          end
+
+          if (!load_stall) begin
+            ifid_pc <= pc;
+            ifid_insn <= insn;
+            idex_pc <= ifid_pc;
+            idex_insn <= ifid_insn;
+            idex_rs1 <= ifid_rs1;
+            idex_rs2 <= ifid_rs2;
+            idex_rd <= ifid_insn[11:7];
+            idex_fwd_a <= id_fwd_a;
+            idex_fwd_b <= id_fwd_b;
+            idex_rs1_val <= rf_r1;
+            idex_rs2_val <= rf_r2;
+            idex_imm <= dec_imm;
+            idex_reg_we <= dec_reg_we;
+            idex_mem_we <= dec_mem_we;
+            idex_mem_re <= dec_mem_re;
+            idex_branch <= dec_branch;
+            idex_jump <= dec_jump;
+            idex_jalr <= dec_jalr;
+            idex_alu_src_imm <= dec_alu_src_imm;
+            idex_wb_mem <= dec_wb_mem;
+            idex_is_crc <= dec_is_crc;
+            idex_alu_op <= dec_alu_op;
+            idex_exc_valid <= id_exc_valid;
+            idex_exc_cause <= id_exc_cause;
+            idex_exc_tval <= id_exc_tval;
+            idex_is_csr <= id_is_csr;
+            idex_csr_imm <= id_csr_imm;
+            idex_csr_we <= id_csr_we;
+            idex_csr_op <= ifid_insn[13:12];
+            idex_csr_addr <= ifid_insn[31:20];
+            idex_is_mret <= id_mret;
+            idex_fence_i <= id_fence_i;
+          end
+
+          exmem_valid <= idex_valid;
+          exmem_pc <= idex_pc;
+          exmem_insn <= idex_insn;
+          exmem_alu <= ex_result;
+          exmem_store_data <= ex_b_reg;
+          exmem_next_pc <= ex_next_pc;
+          exmem_rd <= idex_rd;
+          exmem_reg_we <= idex_reg_we;
+          exmem_mem_we <= idex_mem_we;
+          exmem_mem_re <= idex_mem_re;
+          exmem_wb_mem <= idex_wb_mem;
+          exmem_is_crc <= idex_is_crc;
+          exmem_mem_funct3 <= idex_insn[14:12];
+          exmem_exc_valid <= ex_exc_valid;
+          exmem_exc_cause <= ex_exc_cause;
+          exmem_exc_tval <= ex_exc_tval;
+          exmem_csr_we <= idex_is_csr && idex_csr_we;
+          exmem_csr_addr <= idex_csr_addr;
+          exmem_csr_wdata <= ex_csr_wdata;
+          exmem_is_mret <= idex_is_mret;
+          exmem_fence_i <= idex_fence_i;
+
+          mem2_valid <= exmem_valid;
+          mem2_dmem_issued <= dmem_valid;
+          mem2_pc <= exmem_pc;
+          mem2_insn <= exmem_insn;
+          mem2_alu <= exmem_alu;
+          mem2_next_pc <= exmem_next_pc;
+          mem2_rd <= exmem_rd;
+          mem2_reg_we <= exmem_reg_we;
+          mem2_mem_re <= exmem_mem_re;
+          mem2_wb_mem <= exmem_wb_mem;
+          mem2_is_crc <= exmem_is_crc;
+          mem2_mem_funct3 <= exmem_mem_funct3;
+          mem2_exc_valid <= exmem_exc_valid;
+          mem2_exc_cause <= exmem_exc_cause;
+          mem2_exc_tval <= exmem_exc_tval;
+          mem2_csr_we <= exmem_csr_we;
+          mem2_csr_addr <= exmem_csr_addr;
+          mem2_csr_wdata <= exmem_csr_wdata;
+          mem2_is_mret <= exmem_is_mret;
+          mem2_fence_i <= exmem_fence_i;
         end
-
-        if (redirect) begin
-          ifid_valid <= 1'b0;
-          idex_valid <= 1'b0;
-        end else if (jal_id_redirect) begin
-          ifid_valid <= 1'b0;
-          idex_valid <= ifid_valid;
-        end else if (load_stall) begin
-          idex_valid <= 1'b0;
-        end else begin
-          ifid_valid <= 1'b1;
-          idex_valid <= ifid_valid;
-        end
-
-        if (!load_stall) begin
-          ifid_pc <= pc;
-          ifid_insn <= insn;
-          idex_pc <= ifid_pc;
-          idex_insn <= ifid_insn;
-          idex_rs1 <= ifid_rs1;
-          idex_rs2 <= ifid_rs2;
-          idex_rd <= ifid_insn[11:7];
-          idex_fwd_a <= id_fwd_a;
-          idex_fwd_b <= id_fwd_b;
-          idex_rs1_val <= rf_r1;
-          idex_rs2_val <= rf_r2;
-          idex_imm <= dec_imm;
-          idex_reg_we <= dec_reg_we;
-          idex_mem_we <= dec_mem_we;
-          idex_mem_re <= dec_mem_re;
-          idex_branch <= dec_branch;
-          idex_jump <= dec_jump;
-          idex_jalr <= dec_jalr;
-          idex_alu_src_imm <= dec_alu_src_imm;
-          idex_wb_mem <= dec_wb_mem;
-          idex_is_crc <= dec_is_crc;
-          idex_alu_op <= dec_alu_op;
-          idex_exc_valid <= id_exc_valid;
-          idex_exc_cause <= id_exc_cause;
-          idex_exc_tval <= id_exc_tval;
-          idex_is_csr <= id_is_csr;
-          idex_csr_imm <= id_csr_imm;
-          idex_csr_we <= id_csr_we;
-          idex_csr_op <= ifid_insn[13:12];
-          idex_csr_addr <= ifid_insn[31:20];
-          idex_is_mret <= id_mret;
-          idex_fence_i <= id_fence_i;
-        end
-
-        exmem_valid <= idex_valid;
-        exmem_pc <= idex_pc;
-        exmem_insn <= idex_insn;
-        exmem_alu <= ex_result;
-        exmem_store_data <= ex_b_reg;
-        exmem_next_pc <= ex_next_pc;
-        exmem_rd <= idex_rd;
-        exmem_reg_we <= idex_reg_we;
-        exmem_mem_we <= idex_mem_we;
-        exmem_mem_re <= idex_mem_re;
-        exmem_wb_mem <= idex_wb_mem;
-        exmem_is_crc <= idex_is_crc;
-        exmem_mem_funct3 <= idex_insn[14:12];
-        exmem_exc_valid <= ex_exc_valid;
-        exmem_exc_cause <= ex_exc_cause;
-        exmem_exc_tval <= ex_exc_tval;
-        exmem_csr_we <= idex_is_csr && idex_csr_we;
-        exmem_csr_addr <= idex_csr_addr;
-        exmem_csr_wdata <= ex_csr_wdata;
-        exmem_is_mret <= idex_is_mret;
-        exmem_fence_i <= idex_fence_i;
-
-        mem2_valid <= exmem_valid;
-        mem2_pc <= exmem_pc;
-        mem2_insn <= exmem_insn;
-        mem2_alu <= exmem_alu;
-        mem2_next_pc <= exmem_next_pc;
-        mem2_rd <= exmem_rd;
-        mem2_reg_we <= exmem_reg_we;
-        mem2_mem_re <= exmem_mem_re;
-        mem2_wb_mem <= exmem_wb_mem;
-        mem2_is_crc <= exmem_is_crc;
-        mem2_mem_funct3 <= exmem_mem_funct3;
-        mem2_exc_valid <= exmem_exc_valid;
-        mem2_exc_cause <= exmem_exc_cause;
-        mem2_exc_tval <= exmem_exc_tval;
-        mem2_csr_we <= exmem_csr_we;
-        mem2_csr_addr <= exmem_csr_addr;
-        mem2_csr_wdata <= exmem_csr_wdata;
-        mem2_is_mret <= exmem_is_mret;
-        mem2_fence_i <= exmem_fence_i;
 
         memwb_valid <= mem2_valid;
         memwb_pc <= mem2_pc;

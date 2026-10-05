@@ -7,6 +7,9 @@ Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
+if (-not (Test-Path -LiteralPath "build\hex\freertos.hex")) {
+    throw "FreeRTOS firmware is required. Run scripts\build_freertos.ps1 or scripts\test_freertos.ps1 first."
+}
 
 function Invoke-Checked {
     param([string]$Command, [string[]]$Arguments)
@@ -134,12 +137,11 @@ $RtlSources = @(
 
 Invoke-DifferentialTests
 Invoke-XSimTest "tb_machine_mode" "src\sim\tb_machine_mode.v" "MACHINE MODE PASS"
-if (Test-Path -LiteralPath "build\hex\freertos.hex") {
-    Invoke-XSimTest "tb_freertos_smoke" "src\sim\tb_freertos_smoke.v" "FREERTOS SMOKE PASS"
-    Invoke-XSimTest "tb_freertos_scope" "src\sim\tb_freertos_scope.v" "FREERTOS SCOPE PASS"
-} else {
-    Write-Host "FREERTOS SMOKE SKIP: run scripts\build_freertos.ps1 first"
-}
+Invoke-XSimTest "tb_precise_irq" "src\sim\tb_precise_irq.v" "PRECISE IRQ PASS"
+Invoke-XSimTest "tb_uart_fifo" "src\sim\tb_uart_fifo.v" "UART FIFO PASS"
+Invoke-XSimTest "tb_freertos_smoke" "src\sim\tb_freertos_smoke.v" "FREERTOS SMOKE PASS"
+Invoke-XSimTest "tb_freertos_scope" "src\sim\tb_freertos_scope.v" "FREERTOS SCOPE PASS"
+Invoke-XSimTest "tb_freertos_uart_burst" "src\sim\tb_freertos_scope.v" "FREERTOS UART BURST PASS"
 Invoke-XSimTest "tb_scope_core" "src\sim\tb_scope_core.v" "SCOPE CORE PASS"
 Invoke-XSimTest "tb_soc_realtime_scope" "src\sim\tb_soc_realtime_scope.v" "SOC REALTIME SCOPE PASS"
 

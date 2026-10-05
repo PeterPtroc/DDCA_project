@@ -25,7 +25,7 @@ JB1 异步输入
 
 ## CPU
 
-`rv32_core` 是六级流水 `RV32I + Zicsr` 实现，流水级为 IF、ID、EX、数据请求、数据响应和 WB。除多级数据前递、加载-使用互锁、分支冲刷、自定义 `CRC16.B`、提交跟踪和性能事件外，还实现了机器态 CSR、`ECALL/EBREAK/MRET`、宽度访存与精确 trap。异常信息沿流水线传播到 WB，寄存器、CSR 和存储副作用都受提交点控制；中断只在一条有效指令退休后进入，因此 `mepc` 指向下一条尚未执行的指令。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。前递选择在 ID 阶段提前计算，避免把寄存器号比较器放在 EX 到 PC/ALU 的关键路径上。
+`rv32_core` 是六级流水 `RV32I + Zicsr` 实现，流水级为 IF、ID、EX、数据请求、数据响应和 WB。除多级数据前递、加载-使用互锁、分支冲刷、自定义 `CRC16.B`、提交跟踪和性能事件外，还实现了机器态 CSR、`ECALL/EBREAK/MRET`、宽度访存与精确 trap。异常信息沿流水线传播到 WB，寄存器和 CSR 在 WB 更新。访存请求在数据请求级生效，读后清零等 MMIO 读取也属于副作用；若中断到来时响应级仍有已发出的访存，CPU 停住年轻指令并禁止新请求，先将这次访存推进到 WB 退休，再进入中断。已采样的中断请求与原因会保留到该边界，`mepc` 指向最后退休指令的下一 PC，返回后不会重放已生效访存。同步异常、MRET 和 FENCE.I 也阻止年轻访存越过其边界。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。前递选择在 ID 阶段提前计算，避免把寄存器号比较器放在 EX 到 PC/ALU 的关键路径上。
 
 实现的 CSR 为 `mstatus/misa/mie/mtvec/mscratch/mepc/mcause/mtval/mip/mhartid/mcycle/minstret`（含两个 64 位计数器的高半 CSR）。异常覆盖非法指令、M-mode ECALL、EBREAK、指令地址未对齐和 load/store 未对齐；异步中断覆盖 MSI 和 MTI。处理器始终运行在 M-mode，不包含 S-mode、MMU、PMP、PLIC 或 RV32M。
 
@@ -37,11 +37,19 @@ CLINT 使用标准地址：`msip=0x02000000`、`mtimecmp=0x02004000`、`mtime=0x
 
 `sw/freertos` 使用 GCC `-march=rv32i_zicsr -mabi=ilp32` 和官方 FreeRTOS Kernel V11.3.1 RISC-V port。启动代码设置 `gp/sp`、复制 `.data`、清零 `.bss`、安装 `mtvec` 后进入 `main()`。应用拆分为 `measurement_task`、`ui_task`、`uart_task` 和 `capture_task`：测量快照通过单元素覆盖队列发布，SINGLE/导出请求通过任务通知投递，UART 互斥量保护 shell、遥测和 CAP2 传输。采集任务完成 4096 点打包并用 `CRC16.B` 逐字节计算校验；1 kHz tick 由 CLINT MTI 驱动。
 
+UART 硬件使用 1024 字节 RX FIFO，固件每次被调度后连续取数，排空后才延迟 1 ms。状态寄存器 `0x40001004` 的 bit0 为 TX 就绪、bit1 为 RX 非空、bit2 为粘滞溢出标志、bit3 为 RX 满；向 bit2 写 1 清除溢出。FIFO 满且无同时出队时丢弃新字节，保留队列中已有字节的顺序。
+
+采集任务在等待期间每 1 ms 检查完成状态和任务通知。新的 SINGLE 会重新采集，已有导出请求跟随新采集；重复导出通知合并为一个待导出请求。`c` 取消并清除采集和待导出请求，返回 `ERR2 CANCELLED\n`。取消与其他通知同时到达时，取消优先。等待期限为 1000 ms 加上 `ceil(4096 × active_sample_div / 100000)` ms，超时停止采集并返回 `ERR2 TIMEOUT\n`，后续请求可重新启动。UART 互斥量保证错误行与 CAP2 帧不会交错；整帧发送完成后才处理新采集或取消。
+
+当前配置包含任务、队列、互斥量、计数信号量、动态分配和任务通知；软件定时器、静态分配及部分任务管理 API 被关闭，事件组和流缓冲区源码未收录。测试结论限于该配置与当前四任务应用。
+
 ## 实时波形与深度采集
 
 实时波形模块保存一段短采样历史。`AUTO`、`NORMAL` 和 `SINGLE` 模式将所选边沿对齐到 LED7；`FREE` 模式每 16 个样本发布一帧。`HOLD` 阻止新帧发布，`AUTO` 在长时间没有触发时强制刷新。`sample_div` 控制时基。
 
 深度采集模块使用 4096×1 环形窗口。触发前保留 2048 点，触发后收集剩余样本，最后按时间顺序映射到 `0x40010000..0x40013fff`，触发位置固定为第 2048 点。边沿检测在 100 MHz 时钟域中进行，写入采样窗口的间隔仍由 `sample_div` 决定。
+
+每次写控制寄存器启动采集时，硬件锁存时基、触发边沿、深度和预触发点数。采集中或完成后修改配置只影响下一次采集；本次锁存的边沿和分频分别通过只读寄存器 `0x40004024`、`0x40004028` 提供。控制寄存器的清除/重启优先于同拍采样与触发，防止取消后又被置为完成。
 
 ## 边沿测量
 
@@ -76,7 +84,7 @@ trigger_index[2] period[4] high[4] frequency[4]
 packed_samples[512] crc16[2]
 ```
 
-`period`、`high` 和 `frequency` 由固件缓存写入 CAP2。`low` 不单独写入 CAP2，客户端按 `period - high` 计算，结果下限为 0。
+FreeRTOS 固件在启动采集时保存测量快照，CAP2 的 `period`、`high` 和 `frequency` 来自这份快照；`flags` 和 `sample_div` 来自硬件为该次采集锁存的寄存器。修改当前开关和时基不会给旧样本重新标注。`low` 不单独写入 CAP2，客户端按 `period - high` 计算，结果下限为 0。
 
 CRC 使用初值 `0xffff` 和多项式 `0xa001`，校验范围包括包头和数据区；固件逐字节执行 `CRC16.B`。
 

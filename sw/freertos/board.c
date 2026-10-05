@@ -138,6 +138,11 @@ void board_capture_start( void )
     MMIO32( CAPTURE_BASE ) = 1U;
 }
 
+void board_capture_cancel( void )
+{
+    MMIO32( CAPTURE_BASE ) = 2U;
+}
+
 uint32_t board_switches( void )
 {
     return MMIO32( BUTTON_BASE + 8 );
@@ -156,6 +161,16 @@ uint32_t board_capture_status( void )
 uint32_t board_capture_sample_div( void )
 {
     return MMIO32( CAPTURE_BASE + 12 );
+}
+
+uint32_t board_capture_active_div( void )
+{
+    return MMIO32( CAPTURE_BASE + 40 );
+}
+
+uint32_t board_capture_active_edge( void )
+{
+    return MMIO32( CAPTURE_BASE + 36 ) & 1U;
 }
 
 uint32_t board_capture_trigger_index( void )

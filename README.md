@@ -18,6 +18,7 @@ JA1/2/3/4/7/8/9/10 <- 8 路固定测试信号（持续输出）
 - 64 KiB 指令 BRAM和 64 KiB 数据 BRAM；数据侧只读 ROM 端口用于 C 运行时复制 `.data` 和读取 `.rodata`
 - GCC `rv32i_zicsr/ilp32` C 运行时和官方 FreeRTOS Kernel V11.3.1 RISC-V port，启用 1 kHz 抢占式调度
 - FreeRTOS 中的测量、UI、UART 和采集四任务应用，使用队列和任务通知传递测量/采集事件
+- UART 接收端使用 1024 字节 FIFO；深度采集冻结时基和触发边沿，支持请求超时与取消
 - 单通道 16 点 LED 实时波形，支持 `AUTO`、`NORMAL`、`SINGLE`、`FREE` 和 `RUN/HOLD`
 - 上升沿/下降沿触发与 16 档时基
 - 边沿测量硬件计算 `period_ticks` 和 `high_ticks`，并检测无信号超时；CPU 计算 `frequency_hz` 和 `low_ticks`，供占空比显示、UART 响应和 CAP2 数据包使用
@@ -44,9 +45,8 @@ JA1/2/3/4/7/8/9/10 <- 8 路固定测试信号（持续输出）
 JA 是 12 针 Pmod 接口：JA1–JA4、JA7–JA10 是上述 8 路数字输出；JA5/JA11 是 GND，JA6/JA12 是 3.3 V 电源，不能作为额外信号输出。JA4 受 100 MHz 整数时钟计数限制，实际输出为 14,242.985 Hz、50.007%。
 
 ```powershell
-.\scripts\test.ps1
 .\scripts\build_freertos.ps1
-.\scripts\test_freertos.ps1
+.\scripts\test.ps1
 vivado -mode batch -source scripts/create_vivado_project.tcl
 vivado -mode batch -source scripts/build_bitstream.tcl
 vivado -mode batch -source scripts/program_analyzer.tcl
@@ -91,8 +91,11 @@ python -m pip install pyserial
 python tools/analyzer_cli.py --port COM9 status
 python tools/analyzer_cli.py --port COM9 measure
 python tools/analyzer_cli.py --port COM9 dump --output capture.csv --vcd capture.vcd --packet capture.cap2
+python tools/analyzer_cli.py --port COM9 cancel
 python tools/analyzer_cli.py --port COM9 perf
 ```
+
+FreeRTOS 固件的采集等待期限为 1 秒触发等待余量加上 `4096 × sample_div / 100 MHz` 的采样时间（向上取整到毫秒）。超时后停止该次深度采集并返回 `ERR2 TIMEOUT`；`cancel` 发送 `c`，清除采集和待导出请求，返回 `ERR2 CANCELLED`。等待期间仍可接收新的 SINGLE 请求来重新采集。客户端默认串口超时为 10 秒；导出读取超时时会自动发送 `c`。CAP2 帧开始发送后会完成整帧传输，再处理取消请求。
 
 已有的 CAP2 数据包也可以单独转换：
 
@@ -102,15 +105,20 @@ python tools/capture_dump.py capture.cap2 capture.vcd --csv capture.csv
 
 ## 验证
 
-`scripts/test.ps1` 运行六层验证：
+`scripts/test.ps1` 要求存在 `build/hex/freertos.hex`，缺失时直接失败，不再跳过 FreeRTOS 后报告整体 PASS。它运行以下验证：
 
 1. `tb_cpu_trace` 与 Python 参考模型：`isa_test`、`hazard_test`、`crc_test`
 2. `tb_machine_mode`：CSR、ECALL/EBREAK/MRET、精确 trap、宽度访存、未对齐异常、MSI/MTI 和 CLINT
-3. `tb_freertos_smoke`：官方 RISC-V port、四任务启动、阻塞切换、机器定时器 tick 和抢占式上下文保存（存在 `freertos.hex` 时运行）
-4. `tb_freertos_scope`：RTOS UART shell、RUN/HOLD、测量/性能响应、SINGLE、CAP2 与 `CRC16.B`
-5. `tb_scope_core`：8 路固定测试波形、边沿测量、实时波形、深度采集和基础交互
-6. `tb_soc_realtime_scope`：兼容验证 JA4/JA9 模拟跳线、CPU、`scope.S`、MMIO 和各外设
+3. `tb_precise_irq`：两种 PC 实现、MSI/MTI、电平/脉冲和 10 个中断落点，共 80 例，检查连续写与读后清零操作只生效和退休一次
+4. `tb_uart_fifo`：连续接收、顺序、指针回绕、满队列、溢出和同时入队/出队
+5. `tb_freertos_smoke`：官方 RISC-V port、四任务启动、阻塞切换、机器定时器 tick 和抢占式上下文保存
+6. `tb_freertos_scope`：RTOS UART shell、RUN/HOLD、测量/性能响应、SINGLE、CAP2 参数冻结、取消、超时和恢复
+7. `tb_freertos_uart_burst`：按实际 115200 波特率连续发送 `s`、`m`，检查两条响应的顺序和完整性
+8. `tb_scope_core`：8 路固定测试波形、边沿测量、实时波形、采集中修改配置、深度采集和基础交互
+9. `tb_soc_realtime_scope`：兼容验证 JA4/JA9 模拟跳线、CPU、`scope.S`、MMIO 和各外设
 
 `scripts/test_freertos.ps1` 会先用 GCC 重建 FreeRTOS，再执行全部 RTL/SoC 回归。
+
+当前 FreeRTOS 为裁剪配置：启用任务、队列、互斥量、计数信号量、动态分配和任务通知；未启用软件定时器、静态分配和部分任务管理 API，也未收录事件组与流缓冲区的实现。这里的测试范围是当前四任务示波器应用，不能据此认定完整 FreeRTOS 功能或板上可靠性已经验证。
 
 模块关系和实现细节见 [系统架构](docs/architecture.md)，仿真分层与测试范围见 [仿真验证](src/sim/README.md)。

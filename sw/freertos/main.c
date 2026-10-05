@@ -11,6 +11,8 @@
 #define TEST_FAIL 0xdeaddeadUL
 #define CAPTURE_EVENT_SINGLE ( 1UL << 0 )
 #define CAPTURE_EVENT_DUMP   ( 1UL << 1 )
+#define CAPTURE_EVENT_CANCEL ( 1UL << 2 )
+#define CAPTURE_TRIGGER_TIMEOUT_MS 1000U
 
 static QueueHandle_t measurement_queue;
 static SemaphoreHandle_t uart_mutex;
@@ -20,6 +22,7 @@ static volatile uint32_t context_switch_count;
 static volatile uint32_t scope_hold;
 static volatile uint32_t scope_timebase = 7U;
 static volatile uint32_t scope_page;
+static ScopeMeasurement capture_measurement;
 
 static const uint32_t timebase_dividers[ 16 ] = {
     1U, 2U, 5U, 10U, 20U, 50U, 100U, 200U,
@@ -123,25 +126,23 @@ static void uart_put_crc_u32( uint32_t value, uint16_t * crc )
 
 static void capture_send_packet( void )
 {
-    ScopeMeasurement measurement = { 0 };
     uint16_t crc = 0xffffU;
     uint32_t byte_index;
     uint32_t bit_index;
     uint8_t packed;
 
-    ( void ) xQueuePeek( measurement_queue, &measurement, 0 );
     for( byte_index = 0U; byte_index < 4U; byte_index++ )
     {
         uart_put_crc_byte( ( uint8_t ) "CAP2"[ byte_index ], &crc );
     }
     uart_put_crc_byte( 2U, &crc );
-    uart_put_crc_byte( ( uint8_t ) ( board_switches() & 1U ), &crc );
+    uart_put_crc_byte( ( uint8_t ) board_capture_active_edge(), &crc );
     uart_put_crc_u16( 4096U, &crc );
-    uart_put_crc_u32( board_capture_sample_div(), &crc );
+    uart_put_crc_u32( board_capture_active_div(), &crc );
     uart_put_crc_u16( board_capture_trigger_index(), &crc );
-    uart_put_crc_u32( measurement.period, &crc );
-    uart_put_crc_u32( measurement.high, &crc );
-    uart_put_crc_u32( measurement.frequency, &crc );
+    uart_put_crc_u32( capture_measurement.period, &crc );
+    uart_put_crc_u32( capture_measurement.high, &crc );
+    uart_put_crc_u32( capture_measurement.frequency, &crc );
 
     for( byte_index = 0U; byte_index < 512U; byte_index++ )
     {
@@ -272,7 +273,8 @@ static void uart_task( void * argument )
 
     for( ; ; )
     {
-        if( board_uart_try_getc( &command ) != 0 )
+        // Drain the FIFO before sleeping; a byte arrives every 87 us at 115200.
+        while( board_uart_try_getc( &command ) != 0 )
         {
             if( command == 'd' )
             {
@@ -281,6 +283,10 @@ static void uart_task( void * argument )
             else if( command == '1' )
             {
                 ( void ) xTaskNotify( capture_task_handle, CAPTURE_EVENT_SINGLE, eSetBits );
+            }
+            else if( command == 'c' )
+            {
+                ( void ) xTaskNotify( capture_task_handle, CAPTURE_EVENT_CANCEL, eSetBits );
             }
             else
             {
@@ -328,28 +334,76 @@ static void uart_task( void * argument )
 static void capture_task( void * argument )
 {
     uint32_t events;
+    uint32_t active = 0U;
+    uint32_t dump_pending = 0U;
+    TickType_t started = 0U;
+    TickType_t timeout = 0U;
+    const char * error;
     ( void ) argument;
     for( ; ; )
     {
         mark_task_seen( 1U << 3 );
         events = 0U;
-        ( void ) xTaskNotifyWait( 0U, 0xffffffffUL, &events, pdMS_TO_TICKS( 10 ) );
-        if( ( events & CAPTURE_EVENT_SINGLE ) != 0U )
+        error = NULL;
+        ( void ) xTaskNotifyWait( 0U, 0xffffffffUL, &events,
+                                 pdMS_TO_TICKS( active != 0U ? 1U : 10U ) );
+        if( ( events & CAPTURE_EVENT_CANCEL ) != 0U )
         {
-            board_scope_start_single();
+            board_capture_cancel();
+            active = 0U;
+            dump_pending = 0U;
+            error = "ERR2 CANCELLED\n";
         }
-        if( ( events & CAPTURE_EVENT_DUMP ) != 0U )
+        else
         {
-            if( ( board_capture_status() & 4U ) == 0U )
+            if( ( events & CAPTURE_EVENT_SINGLE ) != 0U ||
+                ( ( events & CAPTURE_EVENT_DUMP ) != 0U && active == 0U &&
+                  ( board_capture_status() & 4U ) == 0U ) )
             {
-                board_capture_start();
+                // UI writes cannot interleave this acquisition snapshot/arm.
+                taskENTER_CRITICAL();
+                board_scope_measure( &capture_measurement );
+                if( ( events & CAPTURE_EVENT_SINGLE ) != 0U )
+                {
+                    board_scope_start_single();
+                }
+                else
+                {
+                    board_capture_start();
+                }
+                timeout = pdMS_TO_TICKS( CAPTURE_TRIGGER_TIMEOUT_MS +
+                    ( 4096U * board_capture_active_div() + 99999U ) / 100000U );
+                started = xTaskGetTickCount();
+                active = 1U;
+                taskEXIT_CRITICAL();
             }
-            while( ( board_capture_status() & 4U ) == 0U )
+            if( ( events & CAPTURE_EVENT_DUMP ) != 0U )
             {
-                vTaskDelay( pdMS_TO_TICKS( 1 ) );
+                dump_pending = 1U;
             }
+            if( ( board_capture_status() & 4U ) != 0U )
+            {
+                active = 0U;
+                if( dump_pending != 0U )
+                {
+                    ( void ) xSemaphoreTake( uart_mutex, portMAX_DELAY );
+                    capture_send_packet();
+                    ( void ) xSemaphoreGive( uart_mutex );
+                    dump_pending = 0U;
+                }
+            }
+            else if( active != 0U && ( xTaskGetTickCount() - started ) >= timeout )
+            {
+                board_capture_cancel();
+                active = 0U;
+                dump_pending = 0U;
+                error = "ERR2 TIMEOUT\n";
+            }
+        }
+        if( error != NULL )
+        {
             ( void ) xSemaphoreTake( uart_mutex, portMAX_DELAY );
-            capture_send_packet();
+            board_uart_puts( error );
             ( void ) xSemaphoreGive( uart_mutex );
         }
     }
