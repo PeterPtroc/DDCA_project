@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-05",
+  "rv32m_baseline_commit": "191da2f0ea6485f6d6bb140418bf774b669e792a",
+  "tool": "Vivado 2024.2 XSim",
+  "interface_regression": "PASS",
+  "isa_retires_per_pc_style": 10001,
+  "wait_irq_cases": 648,
+  "axi_word_transactions": 135,
+  "asynchronous_cdc_transactions": 64,
+  "arbiter_transactions": 40,
+  "dma_copy_and_error_recovery": "PASS",
+  "mig_ip_generation": "PASS",
+  "mig_target_part": "xc7a100tcsg324-1",
+  "board_soc_integrated": false,
+  "board_calibration_verified": false,
+  "sha256": {
+    "src/rtl/cpu/rv32im_mem_core.v": "4058c8e231ed652967a9f2e597bca74fcd148dcd61574564647db67f2de7cb9e",
+    "src/rtl/bus/word_bus_arbiter.v": "a541cffedf2185dd14549845181e0bfb781e27ffbe17989570fa880dd8a740ed",
+    "src/rtl/memory/ddr2_axi_word_bridge.v": "9f77b330bf7aae32042a0ec439838b415f41ce10fa6cab5b59804ad89735b8b2",
+    "src/rtl/memory/word_bus_cdc.v": "42c6ccaa0ba20f46f20d2f331b4c1ef021a0db25f0b6c2ee6acf2215ca8e56c9",
+    "src/rtl/peripheral/dma_copy.v": "c89ddb79a67dda54c792c97de694861b4ae1aed77ef257c9222e4669fad9cc1a",
+    "src/sim/tb_rv32m_wait_trace.v": "ca38d50357cd8ddd0bf8dfed41b21b0ebce94753244958a25b8e919588acfc5a",
+    "src/sim/tb_rv32m_wait_irq.v": "e66b6f128f46b8a8fee536ddeef0a60ab3bc7fa90fc4c57a5444b65cea6dc806",
+    "src/sim/tb_memory_faults.v": "b06ffd5a3ff3d3a7c9a3249fc2e45dcca23cf70dc1d561c460b52513e6985c1d",
+    "src/sim/tb_ddr2_axi_word.v": "ad37b2a05214b37e792ce459a23a5a8c9c56ef3e857ca19842cb23dc79ff6615",
+    "src/sim/tb_memory_fabric.v": "878d73a809e72da262339a508e2b197d643f60ec7eaa50e6444299a390a31cbf",
+    "scripts/test_memory_interface.ps1": "108e289d95a36e26c553564e5bb7e71f00187b75c88474bf40e7d19a553e2a85",
+    "scripts/create_ddr2_ip.tcl": "2448f7c0b09f46760db1dc65d1b9669a9143ebd72c66e21f9158b402eccffae9",
+    "third_party/digilent/nexys-a7-100t-mig.prj": "b3bd26e09a9dfcb47de33fe70343c42b5ef7600849ac759c41ca3c1578707770"
+  }
+}

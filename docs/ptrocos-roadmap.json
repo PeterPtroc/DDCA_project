@@ -1,6 +1,8 @@
 {
   "baseline_commit": "80cc06f144e8c954c662490dbeac25e489bfda8d",
   "development_branch": "codex/ptrocos-evolution",
+  "submission_branch": "PtrocOS",
+  "commit_message_convention": "[feat]/[fix]/[improvement] followed by a concise Chinese description",
   "policy": [
     "Preserve the existing CPU, production SoC, constraints, firmware and build flow.",
     "Develop experimental RTL and software through separate modules and build entries.",
@@ -10,7 +12,7 @@
   "stages": [
     {"order": 1, "name": "Freeze known-good CPU", "status": "verified", "acceptance": "Original RTL unchanged; original full regression passes."},
     {"order": 2, "name": "RV32M and independent ISA tests", "status": "verified_in_simulation_and_internal_ooc_timing", "acceptance": "All eight operations, edge and random vectors, two PC styles, forwarding, precise trap and IRQ, no duplicated MMIO."},
-    {"order": 3, "name": "DDR2 and DMA", "status": "mig_generated_bus_integration_pending", "acceptance": "MIG calibration, CPU backpressure, byte enables, DMA bounds and arbitration; board memory sweep and CRC."},
+    {"order": 3, "name": "DDR2 and DMA", "status": "mig_generated_and_memory_fabric_simulated_board_soc_pending", "acceptance": "MIG calibration, CPU backpressure, byte enables, DMA bounds and arbitration; board memory sweep and CRC."},
     {"order": 4, "name": "VGA text mode and PS/2 keyboard", "status": "pending", "acceptance": "640x480 timing, text cells and cursor, PS/2 parity and scan-code decoding, board typing."},
     {"order": 5, "name": "PtrocOS TTY and shell", "status": "pending", "acceptance": "Editable lines, command dispatch, UART and VGA/keyboard TTY, scheduler remains responsive."},
     {"order": 6, "name": "SD and FatFs", "status": "pending", "acceptance": "SD initialization and block I/O, FAT mount and file read, removal/error handling."},

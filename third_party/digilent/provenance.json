@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/Digilent/vivado-boards",
+  "path": "new/board_files/nexys-a7-100t/D.0/1.3/mig.prj",
+  "download_url": "https://raw.githubusercontent.com/Digilent/vivado-boards/master/new/board_files/nexys-a7-100t/D.0/1.3/mig.prj",
+  "retrieved_date": "2026-10-05",
+  "sha256": "b3bd26e09a9dfcb47de33fe70343c42b5ef7600849ac759c41ca3c1578707770",
+  "license": "License.txt",
+  "notes": "Unmodified official 100T board preset. TargetFPGA specifies xc7a100t; its legacy FPGADevice.selected field says 50T. Verify generated IP targets the project part. AXI interface is 128 bits with 27-bit byte addresses and no narrow bursts."
+}

@@ -1,6 +1,6 @@
 # PtrocOS 开发与验证
 
-实验开发基于 `80cc06f144e8c954c662490dbeac25e489bfda8d`，分支为 `codex/ptrocos-evolution`。原有 `rv32_core`、CPU 辅助模块、生产 SoC、板级顶层、约束和固件构建流程均保留。新增功能使用独立模块与验证入口，现有示波器工程继续使用原 CPU。
+实验开发基于 `80cc06f144e8c954c662490dbeac25e489bfda8d`，在隔离 worktree 的 `codex/ptrocos-evolution` 分支验证后提交到 `PtrocOS`，提交说明沿用 `[feat]`、`[fix]` 等中文格式。原有 `rv32_core`、CPU 辅助模块、生产 SoC、板级顶层、约束和固件构建流程均保留。新增功能使用独立模块与验证入口，现有示波器工程继续使用原 CPU。
 
 ## 开发顺序
 
@@ -58,9 +58,19 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 
 ## DDR2 接口设计要求
 
-DDR2 IP 已生成，尚未接入 CPU 或 DMA。实验核需要支持可变访存延迟：等待期间保持请求与操作数稳定，禁止重复写入，允许较老指令退休，且中断不能越过尚未完成的访存副作用。原核的固定延迟接口保持原样。
+DDR2 IP 已生成，CPU 等待握手、AXI 桥、DMA、仲裁和跨时钟通路已分别通过逻辑仿真，尚未组成实验板级 SoC。`rv32im_mem_core` 从已验证的 RV32IM 核独立复制，原 RV32I 与 RV32IM 核均保持原样。等待期间保持请求与操作数稳定，禁止重复写入，允许较老指令退休；中断等待未完成的访存及其退休。总线错误产生 load/store access fault，`mtval` 记录原访问地址。
 
-MIG 时钟域与 CPU 时钟域之间需要明确的跨时钟握手。DMA 与 CPU 共享 DDR 时要保证仲裁进展、字节写使能和范围检查。后续 framebuffer、SD 和音频将复用该内存通路。开始 cache 前先完成这些路径并测量实际带宽。
+`ddr2_axi_word_bridge` 将 32 位请求转换为对齐的单个 128 位 AXI beat，因为官方 MIG 配置关闭 narrow burst。写掩码保留相邻字节，等待 AW/W 和 B/R 响应后才返回完成。DDR 地址范围为 `0x80000000..0x87ffffff`，越界请求在桥内拒绝。
+
+`word_bus_cdc` 使用单个待处理请求和 request/completion toggle，在 CPU 与 MIG 时钟域之间传递保持稳定的数据。两域必须在失去校准时共同复位，并分别同步释放复位。逻辑仿真不能替代板级 CDC 与时序检查。`word_bus_arbiter` 在 CPU 和 DMA 之间轮流仲裁，将授权保持到请求完成。
+
+`dma_copy` 复制对齐的 DDR 数据字，拒绝重叠区域、未对齐、越界和长度溢出。启动时锁存配置；忙时重新配置或重复启动不替换当前任务。取消请求等待当前总线事务完成：读阶段取消不启动写入，写阶段取消先完成当前写入。DMA 也处理总线错误并支持恢复。后续 framebuffer、SD 和音频将复用内存通路；开始 cache 前先完成这些路径并测量实际带宽。
+
+```powershell
+.\scripts\test_memory_interface.ps1 -VivadoBin D:\xilinx\Vivado\2024.2\bin
+```
+
+该脚本已通过两种 PC 实现各 10,001 条带等待的 ISA 提交差分、648 组带等待的中断测试、延迟 load/store access fault 与恢复、135 组 AXI 请求、64 组异步 mailbox 请求、40 组竞争仲裁请求，以及 DMA 的复制、配置冻结、非法参数、取消和错误恢复测试。日志为 `build/memory-interface-regression.log`。它不包含真实 MIG 存储器模型或板卡校准测试。
 
 板卡内存配置依据 [Digilent Nexys A7 参考手册](https://digilent.com/reference/_media/reference/programmable-logic/nexys-a7/nexys-a7_rm.pdf) 与 [官方 MIG 配置](https://github.com/Digilent/vivado-boards/blob/master/new/board_files/nexys-a7-100t/D.0/1.3/mig.prj)。实际 MIG 校准、DDR 压力测试、显示、键盘、SD 和音频都需要独立板级验收。
 
