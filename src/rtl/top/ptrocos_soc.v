@@ -15,6 +15,9 @@ module ptrocos_soc #(
     input wire [4:0] btn,
     input wire [7:0] capture_in,
     input wire uart_rx,
+    input wire pixel_clk, pixel_rst, ps2_clk, ps2_data,
+    output wire [3:0] vga_red, vga_green, vga_blue,
+    output wire vga_hsync, vga_vsync,
     output wire [15:0] led,
     output wire uart_tx,
     output wire [7:0] seg_an,
@@ -60,6 +63,9 @@ module ptrocos_soc #(
   // Route all of 0x8... to the DDR bridge so accesses beyond 128 MiB fault.
   wire ddr_sel = da[31:28] == 4'h8;
   wire dma_sel = da[31:12] == 20'h4000a;
+  wire vga_reg_sel = da[31:12] == 20'h4000b;
+  wire keyboard_sel = da[31:12] == 20'h4000c;
+  wire vga_cell_sel = da[31:14] == 18'h10004;
   wire rom_sel = da[31:16] == 16'h0000;
   wire ram_sel = da[31:16] == 16'h1000;
   wire mmio_sel = da[31:28] == 4'h4;
@@ -67,7 +73,9 @@ module ptrocos_soc #(
   wire cpu_ddr_ready, cpu_ddr_error, dma_valid, dma_we, dma_ready, dma_error;
   wire [31:0] dma_addr, dma_wdata;
   wire [3:0] dma_wstrb;
-  wire data_ready = ddr_sel ? cpu_ddr_ready : 1'b1;
+  wire [31:0] vga_cell_rdata, vga_reg_rdata, keyboard_rdata;
+  wire vga_reg_ready;
+  wire data_ready = ddr_sel ? cpu_ddr_ready : vga_reg_sel ? vga_reg_ready : 1'b1;
   wire data_error = ddr_sel ? cpu_ddr_error :
       (!rom_sel && !ram_sel && !clint_sel && !mmio_sel) || (rom_sel && dwe);
   reg [2:0] read_region;
@@ -109,7 +117,7 @@ module ptrocos_soc #(
       .EDGE_INITIAL_TIMEOUT_TICKS(EDGE_INITIAL_TIMEOUT_TICKS),
       .LIVE_AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES)
   ) bus (
-      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel), .we(dwe), .addr(da), .wdata(dw),
+      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel), .we(dwe), .addr(da), .wdata(dw),
       .sw(sw), .btn(btn), .capture_in(capture_in), .uart_rx_i(uart_rx),
       .retire(rv), .stall(es), .fwd_ex(ef),
       .fwd_wb(wf), .flush(fl), .branch(br), .branch_taken(bt), .crc(crc),
@@ -120,6 +128,19 @@ module ptrocos_soc #(
       .rgb0_b(rgb0_b), .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );
   assign firmware_result = test_result;
+  vga_text text_display (
+      .clk(clk),.rst(rst),.pixel_clk(pixel_clk),.pixel_rst(pixel_rst),
+      .cell_valid(dv && vga_cell_sel),.cell_we(dwe),.cell_addr(da[13:2]),
+      .cell_wdata(dw),.cell_wstrb(dstrb),.cell_rdata(vga_cell_rdata),
+      .reg_valid(dv && vga_reg_sel),.reg_we(dwe),.reg_addr(da),.reg_wdata(dw),
+      .reg_wstrb(dstrb),.reg_ready(vga_reg_ready),.reg_rdata(vga_reg_rdata),
+      .red(vga_red),.green(vga_green),.blue(vga_blue),.hsync(vga_hsync),.vsync(vga_vsync)
+  );
+  ps2_keyboard keyboard (
+      .clk(clk),.rst(rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
+      .valid(dv && keyboard_sel),.we(dwe),.addr(da),.wdata(dw),.wstrb(dstrb),
+      .rdata(keyboard_rdata),.irq()
+  );
   dma_copy dma (
       .clk(clk), .rst(rst), .mmio_valid(dv && dma_sel), .mmio_we(dwe),
       .mmio_addr(da), .mmio_wdata(dw), .mmio_wstrb(dstrb), .mmio_rdata(dma_mmio_rdata),
@@ -148,11 +169,15 @@ module ptrocos_soc #(
         read_region <= 3'd3;
       else if (dma_sel)
         read_region <= 3'd4;
+      else if (vga_cell_sel)
+        read_region <= 3'd5;
+      else if (vga_reg_sel)
+        read_region <= 3'd6;
       else if (da[31:16] == 16'h0000)
         read_region <= 2'd1;
       else if (clint_sel || da[31:28] == 4'h4) begin
         read_region <= 2'd2;
-        peripheral_rdata <= clint_sel ? clint_r : mmio_r;
+        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : mmio_r;
       end else
         read_region <= 2'd0;
     end
@@ -163,6 +188,8 @@ module ptrocos_soc #(
   assign dr = (read_region == 2'd1) ? imem_data_rdata :
               (read_region == 2'd2) ? peripheral_rdata :
               (read_region == 3'd3) ? cpu_ddr_rdata :
-              (read_region == 3'd4) ? dma_mmio_rdata : dmem_rdata;
+              (read_region == 3'd4) ? dma_mmio_rdata :
+              (read_region == 3'd5) ? vga_cell_rdata :
+              (read_region == 3'd6) ? vga_reg_rdata : dmem_rdata;
 endmodule
 `default_nettype wire

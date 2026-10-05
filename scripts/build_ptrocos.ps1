@@ -1,4 +1,4 @@
-param([string]$ToolchainPrefix,[ValidateSet('ddr2')][string]$Firmware='ddr2')
+param([string]$ToolchainPrefix,[ValidateSet('ddr2','text')][string]$Firmware='ddr2')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $Root=Split-Path -Parent $PSScriptRoot
@@ -24,7 +24,9 @@ New-Item -ItemType Directory -Path $Out,'build/hex' -Force | Out-Null
 $Flags=@('-march=rv32im_zicsr','-mabi=ilp32','-mcmodel=medany','-msmall-data-limit=0',
     '-O2','-g','-ffreestanding','-fno-builtin','-fdata-sections','-ffunction-sections','-Wall','-Wextra','-Werror','-Isw/ptrocos')
 $Objects=@()
-foreach($source in @('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/freertos/runtime.c','sw/ptrocos/startup.S')) {
+$Sources=@('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/freertos/runtime.c','sw/ptrocos/startup.S')
+if($Firmware -eq 'text') {$Sources+=@('sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c')}
+foreach($source in $Sources) {
     $object=Join-Path $Out ((($source -replace '[/\\]','_') -replace '\.[cS]$','.o'))
     Invoke-Checked $Gcc ($Flags+@('-c',$source,'-o',$object))
     $Objects+=$object

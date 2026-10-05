@@ -1,8 +1,12 @@
 set script_dir [file dirname [file normalize [info script]]]
-set out [file normalize [file join $script_dir .. build ptrocos_vivado]]
+set out [file normalize [get_property DIRECTORY [current_project]]]
+# Implementation hooks use an in-memory project rooted inside ptrocos.runs.
+if {[file tail [file dirname $out]] eq "ptrocos.runs"} {
+    set out [file dirname [file dirname $out]]
+}
 set reports [file join $out reports]
 file mkdir $reports
-foreach {clock_pin expected_period} {cpu_clock/O 10.000 reference_clock/O 5.000} {
+foreach {clock_pin expected_period} {cpu_clock/O 10.000 reference_clock/O 5.000 pixel_clock/O 39.682540} {
     set clocks [get_clocks -of_objects [get_pins $clock_pin]]
     if {[llength $clocks]!=1 || abs([get_property PERIOD $clocks]-$expected_period)>0.001} {
         error "Incorrect implemented clock at $clock_pin: $clocks, expected ${expected_period}ns"
@@ -17,6 +21,14 @@ foreach pattern {
     {.*ddr_cdc/response_(data|error)_reg(\[[0-9]+\])?$}
     {.*ddr_cdc/source_(rdata|error)_reg(\[[0-9]+\])?$}
     {.*(cpu|ui)_reset_sync_reg\[[01]\]$}
+    {.*pixel_reset_sync_reg\[[01]\]$}
+    {.*text_display/register_cdc/request_sync_reg\[0\]$}
+    {.*text_display/register_cdc/completion_sync_reg\[0\]$}
+    {.*text_display/register_cdc/payload_(we|addr|data|strobes)_reg(\[[0-9]+\])?$}
+    {.*text_display/register_cdc/target_(we|addr|wdata|wstrb)_reg(\[[0-9]+\])?$}
+    {.*text_display/register_cdc/response_data_reg(\[[0-9]+\])?$}
+    {.*text_display/register_cdc/source_rdata_reg(\[[0-9]+\])?$}
+    {.*keyboard/(clock|data)_sync_reg\[0\]$}
 } {
     if {![llength [get_cells -hier -quiet -regexp $pattern]]} {
         error "Missing mailbox constraint endpoint: $pattern"

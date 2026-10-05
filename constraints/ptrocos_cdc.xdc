@@ -18,5 +18,18 @@ set_false_path -hold -from $response_payload -to $response_capture
 # The combined loss-of-lock/calibration reset asserts asynchronously. Only the
 # reset-release synchronizer clears ignore recovery/removal. Release travels
 # through two locally clocked stages; all downstream logic remains timed.
-set reset_sync [get_cells -hier -regexp {.*(cpu|ui)_reset_sync_reg\[[01]\]$}]
+set reset_sync [get_cells -hier -regexp {.*(cpu|ui|pixel)_reset_sync_reg\[[01]\]$}]
 set_false_path -to [get_pins -of_objects $reset_sync -filter {REF_PIN_NAME == CLR}]
+# Text registers use the same held-payload mailbox between CPU and pixel clocks.
+set video_req [get_cells -hier -regexp {.*text_display/register_cdc/request_sync_reg\[0\]$}]
+set video_ack [get_cells -hier -regexp {.*text_display/register_cdc/completion_sync_reg\[0\]$}]
+set_false_path -to [get_pins -of_objects $video_req -filter {REF_PIN_NAME == D}]
+set_false_path -to [get_pins -of_objects $video_ack -filter {REF_PIN_NAME == D}]
+set video_payload [get_cells -hier -regexp {.*text_display/register_cdc/payload_(we|addr|data|strobes)_reg(\[[0-9]+\])?$}]
+set video_capture [get_cells -hier -regexp {.*text_display/register_cdc/target_(we|addr|wdata|wstrb)_reg(\[[0-9]+\])?$}]
+set video_response [get_cells -hier -regexp {.*text_display/register_cdc/response_(data|error)_reg(\[[0-9]+\])?$}]
+set video_return [get_cells -hier -regexp {.*text_display/register_cdc/source_(rdata|error)_reg(\[[0-9]+\])?$}]
+set_max_delay -datapath_only 10.000 -from $video_payload -to $video_capture
+set_max_delay -datapath_only 10.000 -from $video_response -to $video_return
+set_false_path -hold -from $video_payload -to $video_capture
+set_false_path -hold -from $video_response -to $video_return

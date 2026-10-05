@@ -15,6 +15,9 @@ src/rtl/memory/word_bus_cdc.v
 src/rtl/memory/ddr2_axi_word_bridge.v
 src/rtl/peripheral/clint.v
 src/rtl/peripheral/dma_copy.v
+src/rtl/peripheral/ps2_keyboard.v
+src/rtl/video/text_font_rom.v
+src/rtl/video/vga_text.v
 src/rtl/peripheral/button_debounce.v
 src/rtl/peripheral/button_mmio.v
 src/rtl/peripheral/edge_meter_scope.v

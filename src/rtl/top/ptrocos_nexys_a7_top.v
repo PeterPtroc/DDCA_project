@@ -10,6 +10,9 @@ module ptrocos_nexys_a7_top #(
     output wire [15:0] led,
     input wire uart_rx,
     output wire uart_tx,
+    input wire ps2_clk, ps2_data,
+    output wire [3:0] vga_red, vga_green, vga_blue,
+    output wire vga_hsync, vga_vsync,
     output wire [7:0] pmod_ja,
     input wire jb1,
     output wire [7:0] seg_an,
@@ -39,8 +42,19 @@ module ptrocos_nexys_a7_top #(
   );
   BUFG reference_feedback(.I(feedback_raw),.O(feedback));
   BUFG reference_clock(.I(reference_raw),.O(reference_clk200));
-  wire reset_any=!reset_n || !reference_locked || !mig_locked || ui_sync_rst || !calibrated;
-  (* ASYNC_REG="TRUE" *) reg [1:0] cpu_reset_sync=0, ui_reset_sync=0;
+  wire pixel_clk,pixel_raw,pixel_feedback_raw,pixel_feedback,pixel_locked;
+  // 100/5 * 31.5 / 25 = 25.2 MHz; VCO=630 MHz. 800*525 pixels = exactly 60 Hz.
+  MMCME2_BASE #(.CLKIN1_PERIOD(10.0),.DIVCLK_DIVIDE(5),.CLKFBOUT_MULT_F(31.5),
+      .CLKOUT0_DIVIDE_F(25.0),.STARTUP_WAIT("FALSE")) pixel_mmcm (
+      .CLKIN1(cpu_clk),.CLKFBIN(pixel_feedback),.RST(!reset_n),.PWRDWN(1'b0),
+      .CLKFBOUT(pixel_feedback_raw),.CLKFBOUTB(),.CLKOUT0(pixel_raw),.CLKOUT0B(),
+      .CLKOUT1(),.CLKOUT1B(),.CLKOUT2(),.CLKOUT2B(),.CLKOUT3(),.CLKOUT3B(),
+      .CLKOUT4(),.CLKOUT5(),.CLKOUT6(),.LOCKED(pixel_locked)
+  );
+  BUFG pixel_feedback_buffer(.I(pixel_feedback_raw),.O(pixel_feedback));
+  BUFG pixel_clock(.I(pixel_raw),.O(pixel_clk));
+  wire reset_any=!reset_n || !reference_locked || !pixel_locked || !mig_locked || ui_sync_rst || !calibrated;
+  (* ASYNC_REG="TRUE" *) reg [1:0] cpu_reset_sync=0, ui_reset_sync=0, pixel_reset_sync=0;
   always @(posedge cpu_clk or posedge reset_any) begin
     if(reset_any) cpu_reset_sync<=0;
     else cpu_reset_sync<={cpu_reset_sync[0],1'b1};
@@ -49,7 +63,11 @@ module ptrocos_nexys_a7_top #(
     if(reset_any) ui_reset_sync<=0;
     else ui_reset_sync<={ui_reset_sync[0],1'b1};
   end
-  wire cpu_rst=!cpu_reset_sync[1], ui_rst=!ui_reset_sync[1];
+  always @(posedge pixel_clk or posedge reset_any) begin
+    if(reset_any) pixel_reset_sync<=0;
+    else pixel_reset_sync<={pixel_reset_sync[0],1'b1};
+  end
+  wire cpu_rst=!cpu_reset_sync[1], ui_rst=!ui_reset_sync[1], pixel_rst=!pixel_reset_sync[1];
   wire mv,mw,mr,me,tv,tw,tr,te;
   wire [31:0] ma,md,rd,ta,td,rr;
   wire [3:0] ms,ts;
@@ -62,6 +80,8 @@ module ptrocos_nexys_a7_top #(
   wire [15:0] wstrb;
   ptrocos_soc #(.CPU_PC_NEXT_STYLE(CPU_PC_NEXT_STYLE),.UART_DIVIDER(UART_DIVIDER),.IMEM_HEX(IMEM_HEX)) soc (
       .clk(cpu_clk),.rst(cpu_rst),.sw(sw),.btn(btn),.capture_in({7'd0,jb1}),
+      .pixel_clk(pixel_clk),.pixel_rst(pixel_rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
+      .vga_red(vga_red),.vga_green(vga_green),.vga_blue(vga_blue),.vga_hsync(vga_hsync),.vga_vsync(vga_vsync),
       .uart_rx(uart_rx),.uart_tx(uart_tx),.led(led),.seg_an(seg_an),.seg(seg),.seg_dp(seg_dp),
       .rgb0_r(rgb0_r),.rgb0_g(rgb0_g),.rgb0_b(rgb0_b),.rgb1_r(rgb1_r),.rgb1_g(rgb1_g),.rgb1_b(rgb1_b),
       .memory_valid(mv),.memory_we(mw),.memory_addr(ma),.memory_wdata(md),.memory_wstrb(ms),

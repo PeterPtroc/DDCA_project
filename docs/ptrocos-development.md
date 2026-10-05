@@ -19,6 +19,8 @@
 11. 根据实际性能测量结果评估 I/D cache。
 12. 后续实现 ELF loader。
 
+第 4 阶段的实现、MMIO 与验收范围见 [VGA 文本与 PS/2 键盘](ptrocos-text.md)。键盘实物验收按用户要求延后，VGA 实屏验收等待显示器连接；继续开发 TTY 与 shell。
+
 ## RV32M 实现
 
 `rv32im_core` 从基线复制而来，通过 `rv32im_decoder` 扩展原译码器；原 `decoder` 文件没有修改。`misa` 返回 `0x40001100`。`rv32m_unit` 实现 `MUL/MULH/MULHSU/MULHU/DIV/DIVU/REM/REMU`，普通运算使用 32 次迭代，除零提前完成。RTL 中没有组合乘法或除法运算符。

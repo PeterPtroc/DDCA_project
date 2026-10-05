@@ -1,3 +1,6 @@
 # Keep the vendored MIG preset byte-for-byte identical to its upstream hash.
 # Whitespace in this unmodified upstream file is intentionally preserved.
 third_party/digilent/nexys-a7-100t-mig.prj -text -whitespace
+third_party/font8x8/font8x8_basic.h -text -whitespace
+# Its original seven-equals underline is prose, not a merge-conflict marker.
+third_party/font8x8/README -text -whitespace conflict-marker-size=64
