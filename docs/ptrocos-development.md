@@ -58,7 +58,7 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 
 ## DDR2 接口设计要求
 
-DDR2 IP 已生成，CPU 等待握手、AXI 桥、DMA、仲裁和跨时钟通路已分别通过逻辑仿真，尚未组成实验板级 SoC。`rv32im_mem_core` 从已验证的 RV32IM 核独立复制，原 RV32I 与 RV32IM 核均保持原样。等待期间保持请求与操作数稳定，禁止重复写入，允许较老指令退休；中断等待未完成的访存及其退休。总线错误产生 load/store access fault，`mtval` 记录原访问地址。
+`ptrocos_soc` 已接入 CPU 等待握手、AXI 桥、DMA、仲裁和跨时钟通路；完整 SoC 已运行 GCC 编译的诊断固件并通过逻辑仿真。`rv32im_mem_core` 从已验证的 RV32IM 核独立复制，原 RV32I 与 RV32IM 核均保持原样。等待期间保持请求与操作数稳定，禁止重复写入，允许较老指令退休；中断等待未完成的访存及其退休。总线错误产生 load/store access fault，`mtval` 记录原访问地址。
 
 `ddr2_axi_word_bridge` 将 32 位请求转换为对齐的单个 128 位 AXI beat，因为官方 MIG 配置关闭 narrow burst。写掩码保留相邻字节，等待 AW/W 和 B/R 响应后才返回完成。DDR 地址范围为 `0x80000000..0x87ffffff`，越界请求在桥内拒绝。
 
@@ -74,4 +74,45 @@ DDR2 IP 已生成，CPU 等待握手、AXI 桥、DMA、仲裁和跨时钟通路�
 
 板卡内存配置依据 [Digilent Nexys A7 参考手册](https://digilent.com/reference/_media/reference/programmable-logic/nexys-a7/nexys-a7_rm.pdf) 与 [官方 MIG 配置](https://github.com/Digilent/vivado-boards/blob/master/new/board_files/nexys-a7-100t/D.0/1.3/mig.prj)。实际 MIG 校准、DDR 压力测试、显示、键盘、SD 和音频都需要独立板级验收。
 
-官方 MIG 配置及 MIT 许可证保存在 `third_party/digilent/`，配置文件保持原样并记录 SHA-256。独立运行 `vivado -mode batch -source scripts/create_ddr2_ip.tcl` 可在 `build/ptrocos_ddr2/` 生成 MIG；已确认 IP 目标器件为 `xc7a100tcsg324-1`，AXI 数据宽度为 128 位。当前还没有实验板级位流或 DDR2 校准结果。
+官方 MIG 配置及 MIT 许可证保存在 `third_party/digilent/`，配置文件保持原样并记录 SHA-256。`configure_ptrocos_mig.tcl` 仅在构建目录派生时钟配置：系统时钟使用 No Buffer，关闭额外 UI 时钟，其余内存时序、引脚和 AXI 配置沿用官方值。顶层的单个 IBUF/BUFG 提供 100 MHz CPU/系统时钟；独立 MMCM 生成 200 MHz IDELAY 参考时钟。参考时钟锁定后才释放 MIG，MIG 校准完成后才同步释放 CPU 和访存桥。验收脚本检查实现后的实际频率，不以配置中的分频数推断频率。
+
+## 完整 SoC 与板级验证
+
+实验顶层为 `ptrocos_nexys_a7_top`，使用独立 `build/ptrocos_vivado/` 工程。原示波器顶层和工程入口保持不变。软件仍在 BRAM 中启动，DDR 暂用作诊断数据区；TTY、shell 和 RTOS 集成在下一阶段进行。
+
+实验 SoC 对 CLINT 的定时比较输出寄存一级，避免 64 位比较、中断判断和乘除单元复位串成同一个时序路径。MTIP 相对比较结果延迟一个 CPU 周期；原 CLINT 模块保持不变。完整 SoC 回归与上板诊断验证这个时序接口。
+
+| 地址 | 用途 |
+| --- | --- |
+| `0x00000000..0x0000ffff` | 64 KiB ROM，含指令、只读数据和 `.data` 加载镜像 |
+| `0x10000000..0x1000ffff` | 64 KiB BRAM，含 `.data`、BSS 与栈 |
+| `0x02000000..0x0200ffff` | 原 CLINT 软件/定时器中断 |
+| `0x40001000` | 原 UART，板上 115200 8N1 |
+| `0x4000a000` | DMA 寄存器 |
+| `0x80000000..0x87ffffff` | 128 MiB DDR2 |
+
+DMA 偏移 `0/4/8` 分别设置源地址、目标地址和数据字数量，`0x0c` 为命令，`0x10` 为状态，`0x14` 为已复制数据字数量。命令位 `0/1/2` 分别为启动、取消、清除状态；状态低三位为 busy/done/error，错误码在 `[15:8]`。
+
+```powershell
+.\scripts\build_ptrocos.ps1 -ToolchainPrefix <riscv-none-elf前缀>
+.\scripts\test_ptrocos_ddr2.ps1
+vivado -mode batch -source scripts/create_ddr2_ip.tcl
+.\scripts\test_ptrocos_mig.ps1
+vivado -mode batch -source scripts/build_ptrocos_bitstream.tcl
+```
+
+完整 SoC 仿真使用独立、完整地址标记的稀疏 AXI 存储器，不将高地址位折叠到低地址。两种 PC 实现各完成两轮自检及串口 `r` 命令：每种实现累计 DMA 读取/写入各 512 个数据字、两次 load fault、两次 store fault、三次定时器中断，其中两次在 DMA 工作期间发生。测试从 UART 引脚解码输出；独立 Python 计算的 1024 字节 CRC 为 `0xf364`。另检查 128 MiB 地址线、最后一个数据字、字节和半字写入、相邻数据保持以及 DMA 非法范围。日志为 `build/ptrocos-ddr2-soc-regression.log`。
+
+MIG 引脚仿真入口使用生成的 simulation RTL、厂商 DDR2 芯片模型和 FAST 仿真校准；存储器模型保留完整地址标记，仅将容量设为 1024 个 burst 以缩短查找时间。默认检查校准、地址线、字节/半字访问及越界 fault；`-FullDiagnostic` 可继续运行完整 DMA/CRC/定时器诊断，耗时更长。DMA 和软件的完整验收使用前述 SoC 仿真与真实硬件测试。仿真校准与真实板卡校准分别记录，不能相互替代。板级构建验收要求 setup WNS ≥ +0.100 ns、hold 与 pulse-width 无违例、DDR 参考频率为 200 MHz、CPU 频率为 100 MHz，并检查 DRC、CDC 及 mailbox 约束端点。
+
+上板工具只加载 FPGA 易失配置，不写启动 Flash。先运行 `probe_ptrocos_hardware.tcl` 确定 JTAG URL，再将该 URL 传给 `program_ptrocos.tcl`。硬件串口测试入口如下：
+
+```powershell
+python tools/ptrocos_ddr2_test.py --port COM9 --repeat 3 --full
+```
+
+固件启动后执行短自检，UART `r` 重复自检，`f` 写入并读回整个 128 MiB DDR。短自检 CRC 与主机独立计算结果比较；全范围扫描会覆盖诊断固件使用的整个 DDR 数据区。工具把串口原文和验收结果保存为 `build/ptrocos_hardware/uart.log` 与 `result.json`。
+
+2026-10-06 验收结果：完整 SoC 两种 PC 实现各两轮通过；MIG 引脚 smoke 仿真通过；板级 routed setup WNS 为 +0.203 ns、hold WHS 为 +0.045 ns、pulse-width WPWS 为 +0.206 ns，三种负裕量总和均为零，内部无未约束端点。DRC 无 Error 或 Critical Warning。JTAG `210292B7F710A` 的 `xc7a100t` 已加载实验位流，COM9 上连续三轮 DMA/CRC 自检通过，完整 128 MiB 写入/读回通过；本次串口测试用时约 23.6 秒。记录与 SHA-256 在 [ptrocos-ddr2-validation.json](ptrocos-ddr2-validation.json)。未运行耗时更长的 `-FullDiagnostic` 引脚仿真；完整 DMA/CRC 验收由 SoC 仿真和实机测试提供。
+
+CDC 核对保留原始报告：请求与完成 toggle 均被识别为两级 `ASYNC_REG` 同步器；67 位请求和 33 位返回数据的 10 ns `max_delay -datapath_only` 约束已覆盖实际路径。报告中的 16 个 CDC-1 来自原 GPIO 对拨码开关的异步状态读取，1 个 CDC-10 来自组合复位条件到 CPU 复位释放同步器；没有将这些标记隐藏或声明为零。后者使用异步断言、两级同步释放，逻辑与联合复位测试已核对。DDR mailbox 的数据保持约束与同步器端点均经过实现报告检查。

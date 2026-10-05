@@ -12,7 +12,7 @@
   "stages": [
     {"order": 1, "name": "Freeze known-good CPU", "status": "verified", "acceptance": "Original RTL unchanged; original full regression passes."},
     {"order": 2, "name": "RV32M and independent ISA tests", "status": "verified_in_simulation_and_internal_ooc_timing", "acceptance": "All eight operations, edge and random vectors, two PC styles, forwarding, precise trap and IRQ, no duplicated MMIO."},
-    {"order": 3, "name": "DDR2 and DMA", "status": "mig_generated_and_memory_fabric_simulated_board_soc_pending", "acceptance": "MIG calibration, CPU backpressure, byte enables, DMA bounds and arbitration; board memory sweep and CRC."},
+    {"order": 3, "name": "DDR2 and DMA", "status": "verified_in_soc_simulation_mig_pin_smoke_routed_timing_and_hardware", "acceptance": "MIG calibration, CPU backpressure, byte enables, DMA bounds and arbitration; board memory sweep and CRC.", "evidence": "ptrocos-ddr2-validation.json"},
     {"order": 4, "name": "VGA text mode and PS/2 keyboard", "status": "pending", "acceptance": "640x480 timing, text cells and cursor, PS/2 parity and scan-code decoding, board typing."},
     {"order": 5, "name": "PtrocOS TTY and shell", "status": "pending", "acceptance": "Editable lines, command dispatch, UART and VGA/keyboard TTY, scheduler remains responsive."},
     {"order": 6, "name": "SD and FatFs", "status": "pending", "acceptance": "SD initialization and block I/O, FAT mount and file read, removal/error handling."},
