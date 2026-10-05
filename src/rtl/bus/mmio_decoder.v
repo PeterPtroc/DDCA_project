@@ -95,7 +95,7 @@ module mmio_decoder #(
       .clk(clk), .rst(rst), .scope_signal(scope_signal),
       .we(valid && we && cap_sel), .off(addr[5:0]), .wdata(wdata),
       .window_sel(win_sel), .window_index(addr[13:2]),
-      .rdata(cdata), .display_sample(),
+      .rdata(cdata),
       .armed(capture_armed),
       .triggered(capture_triggered), .done(capture_done), .count(capture_count),
       .trigger_index(capture_trigger_index)

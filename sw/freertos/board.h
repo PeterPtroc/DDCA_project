@@ -22,11 +22,10 @@ enum
 
 void board_uart_putc( char value );
 void board_uart_puts( const char * text );
-void board_uart_put_hex32( uint32_t value );
 int board_uart_try_getc( char * value );
 void board_set_leds( uint16_t value );
 void board_set_test_result( uint32_t value );
-void board_display_hex32( uint32_t value );
+void board_display_decimal( uint32_t value );
 void board_scope_measure( ScopeMeasurement * measurement );
 uint32_t board_scope_measure_status( void );
 void board_scope_set_average( uint32_t enabled );

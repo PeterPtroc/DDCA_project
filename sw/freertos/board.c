@@ -28,16 +28,6 @@ void board_uart_puts( const char * text )
     }
 }
 
-void board_uart_put_hex32( uint32_t value )
-{
-    static const char digits[] = "0123456789abcdef";
-    int shift;
-    for( shift = 28; shift >= 0; shift -= 4 )
-    {
-        board_uart_putc( digits[ ( value >> ( uint32_t ) shift ) & 0xfU ] );
-    }
-}
-
 int board_uart_try_getc( char * value )
 {
     if( ( MMIO32( UART_BASE + 4 ) & 2U ) == 0U )
@@ -58,18 +48,36 @@ void board_set_test_result( uint32_t value )
     MMIO32( GPIO_BASE + 12 ) = value;
 }
 
-void board_display_hex32( uint32_t value )
+void board_display_decimal( uint32_t value )
 {
     uint32_t low = 0U;
     uint32_t high = 0U;
     uint32_t index;
-    for( index = 0; index < 4U; index++ )
+    if( value > 99999999UL )
     {
-        low |= ( ( value >> ( index * 4U ) ) & 0xfU ) << ( index * 8U );
-        high |= ( ( value >> ( ( index + 4U ) * 4U ) ) & 0xfU ) << ( index * 8U );
+        /* Eight dashes indicate overflow instead of a truncated reading. */
+        low = 0x10101010UL;
+        high = 0x10101010UL;
+    }
+    else
+    {
+        for( index = 0U; index < 8U; index++ )
+        {
+            uint32_t digit = value % 10U;
+            value /= 10U;
+            if( index < 4U )
+            {
+                low |= digit << ( index * 8U );
+            }
+            else
+            {
+                high |= digit << ( ( index - 4U ) * 8U );
+            }
+        }
     }
     MMIO32( DISPLAY_BASE ) = low;
     MMIO32( DISPLAY_BASE + 4 ) = high;
+    MMIO32( DISPLAY_BASE + 8 ) = 0U;
     MMIO32( DISPLAY_BASE + 12 ) = 1U;
 }
 

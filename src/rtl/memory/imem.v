@@ -1,6 +1,6 @@
 `default_nettype none
 module imem #(
-    parameter HEX_FILE = "build/hex/scope.hex"
+    parameter HEX_FILE = "build/hex/freertos.hex"
 ) (
     input  wire clk,
     input  wire [31:0] addr,

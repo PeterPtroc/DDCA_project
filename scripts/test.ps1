@@ -94,7 +94,7 @@ $Xelab = Join-Path $VivadoBin "xelab.bat"
 $Xsim = Join-Path $VivadoBin "xsim.bat"
 
 New-Item -ItemType Directory -Path "build\hex" -Force | Out-Null
-foreach ($name in @("scope", "isa_test", "hazard_test", "crc_test", "machine_test")) {
+foreach ($name in @("isa_test", "hazard_test", "crc_test", "machine_test")) {
     Invoke-Checked $Python @(
         "sw\tools\rv32asm.py", "sw\firmware\$name.S", "build\hex\$name.hex"
     )
@@ -140,9 +140,9 @@ Invoke-XSimTest "tb_machine_mode" "src\sim\tb_machine_mode.v" "MACHINE MODE PASS
 Invoke-XSimTest "tb_precise_irq" "src\sim\tb_precise_irq.v" "PRECISE IRQ PASS"
 Invoke-XSimTest "tb_uart_fifo" "src\sim\tb_uart_fifo.v" "UART FIFO PASS"
 Invoke-XSimTest "tb_freertos_smoke" "src\sim\tb_freertos_smoke.v" "FREERTOS SMOKE PASS"
+Invoke-XSimTest "tb_freertos_display" "src\sim\tb_freertos_display.v" "FREERTOS DISPLAY PASS"
 Invoke-XSimTest "tb_freertos_scope" "src\sim\tb_freertos_scope.v" "FREERTOS SCOPE PASS"
 Invoke-XSimTest "tb_freertos_uart_burst" "src\sim\tb_freertos_scope.v" "FREERTOS UART BURST PASS"
 Invoke-XSimTest "tb_scope_core" "src\sim\tb_scope_core.v" "SCOPE CORE PASS"
-Invoke-XSimTest "tb_soc_realtime_scope" "src\sim\tb_soc_realtime_scope.v" "SOC REALTIME SCOPE PASS"
 
 Write-Host "COURSE DESIGN TEST PASS"

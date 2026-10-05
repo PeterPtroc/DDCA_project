@@ -137,7 +137,6 @@ module tb_scope_core;
   reg capture_window_sel = 1'b0;
   reg [11:0] capture_window_index = 12'd0;
   wire [31:0] capture_rdata;
-  wire [7:0] capture_display_sample;
   wire capture_armed;
   wire capture_triggered;
   wire capture_done;
@@ -148,7 +147,7 @@ module tb_scope_core;
       .clk(clk), .rst(capture_rst), .scope_signal(capture_signal),
       .we(capture_we), .off(capture_off), .wdata(capture_wdata),
       .window_sel(capture_window_sel), .window_index(capture_window_index),
-      .rdata(capture_rdata), .display_sample(capture_display_sample),
+      .rdata(capture_rdata),
       .armed(capture_armed), .triggered(capture_triggered),
       .done(capture_done), .count(capture_count),
       .trigger_index(capture_trigger_index)
@@ -357,11 +356,11 @@ module tb_scope_core;
     capture_window_sel = 1'b1;
     capture_window_index = 12'd2047;
     #1;
-    if (capture_display_sample[0] !== 1'b0)
+    if (capture_rdata !== 32'd0)
       $fatal(1, "pre-trigger sample mismatch");
     capture_window_index = 12'd2048;
     #1;
-    if (capture_display_sample[0] !== 1'b1)
+    if (capture_rdata !== 32'd1)
       $fatal(1, "trigger sample missing at index 2048");
 
     // The next arm must pick up the new configuration.
@@ -375,13 +374,19 @@ module tb_scope_core;
     if (capture_rdata != 500) $fatal(1, "new capture did not latch divider 500");
     capture_write(6'h00, 2);
 
-    // A cancel coincident with the last trigger sample must win over done.
+    // The capture geometry is fixed and cannot be changed by MMIO writes.
     capture_write(6'h10, 3);
     capture_write(6'h20, 2);
+    capture_off = 6'h10;
+    #1;
+    if (capture_rdata != 4096) $fatal(1, "capture depth is not fixed");
+    capture_off = 6'h20;
+    #1;
+    if (capture_rdata != 2048) $fatal(1, "capture pretrigger is not fixed");
     capture_write(6'h08, 0);
     capture_write(6'h0c, 1);
     capture_write(6'h00, 1);
-    clocks(3);
+    clocks(2048);
     // A no-op control write must preserve the sampling interval.
     @(negedge clk);
     saved_capture_ptr = capture_dut.write_ptr;
@@ -402,6 +407,26 @@ module tb_scope_core;
     if (capture_armed || capture_triggered || capture_done || capture_count != 0)
       $fatal(1, "same-cycle cancel/trigger did not clear capture state");
 
+    // Cancellation must also win on the final post-trigger sample.
+    capture_signal = 0;
+    capture_write(6'h00, 1);
+    clocks(2048);
+    @(negedge clk); capture_signal = 1;
+    @(negedge clk);
+    i = 0;
+    while (capture_count < 4095 && i < 4096) begin
+      @(negedge clk);
+      i = i + 1;
+    end
+    if (!capture_triggered || capture_done || capture_count != 4095)
+      $fatal(1, "capture did not reach its final sample");
+    capture_off = 0;
+    capture_wdata = 2;
+    capture_we = 1;
+    @(negedge clk); capture_we = 0;
+    if (capture_armed || capture_triggered || capture_done || capture_count != 0)
+      $fatal(1, "same-cycle cancel/completion did not clear capture state");
+
     // UI register/event behavior and the primary RUN/HOLD/SIGNAL states.
     ui_switches = 16'hd39a;
     clocks(4);
@@ -419,13 +444,13 @@ module tb_scope_core;
     clocks(2);
     if (ui_button_event[0]) $fatal(1, "button event did not clear");
 
-    display_write(4'h0, 32'h19181617);
-    display_write(4'h4, 32'h1e1d1c1b);
+    display_write(4'h0, 32'h03020100);
+    display_write(4'h4, 32'h07060504);
     display_write(4'h8, 32'h00000055);
     display_write(4'hc, 32'd1);
     ui_display_off = 4'h0;
     #1;
-    if (ui_display_rdata !== 32'h19181617)
+    if (ui_display_rdata !== 32'h03020100)
       $fatal(1, "seven-segment register write/read failed");
 
     ui_run = 1'b1;

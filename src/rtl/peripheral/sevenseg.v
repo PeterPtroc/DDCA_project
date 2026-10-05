@@ -40,8 +40,8 @@ module sevenseg (
       3'd6: code = display_data1[23:16];
       default: code = display_data1[31:24];
     endcase
-    // Active-low segments. Codes 0..F are hexadecimal, 0x10 is '-', and
-    // all other values are blank. Bytes make firmware formatting painless.
+    // Active-low segments. Codes 0..9 are decimal, 0x10 is '-', and
+    // all other values are blank. One byte encodes each display position.
     case (code)
       8'h00: glyph = 7'b1000000;
       8'h01: glyph = 7'b1111001;
@@ -53,27 +53,7 @@ module sevenseg (
       8'h07: glyph = 7'b1111000;
       8'h08: glyph = 7'b0000000;
       8'h09: glyph = 7'b0010000;
-      8'h0a: glyph = 7'b0001000;
-      8'h0b: glyph = 7'b0000011;
-      8'h0c: glyph = 7'b1000110;
-      8'h0d: glyph = 7'b0100001;
-      8'h0e: glyph = 7'b0000110;
-      8'h0f: glyph = 7'b0001110;
       8'h10: glyph = 7'b0111111;
-      8'h11: glyph = 7'b0001100; // P
-      8'h12: glyph = 7'b0001001; // H
-      8'h13: glyph = 7'b0101111; // r
-      8'h14: glyph = 7'b0010001; // y
-      8'h15: glyph = 7'b1000111; // L
-      8'h16: glyph = 7'b0101011; // n
-      8'h17: glyph = 7'b0100011; // o
-      8'h18: glyph = 7'b0010010; // S
-      8'h19: glyph = 7'b1111011; // i
-      8'h1a: glyph = 7'b0000010; // G
-      8'h1b: glyph = 7'b0001001; // M (approx.)
-      8'h1c: glyph = 7'b0001011; // k (approx.)
-      8'h1d: glyph = 7'b0000111; // t
-      8'h1e: glyph = 7'b1000001; // u
       default: glyph = 7'b1111111;
     endcase
     an  = display_ctrl[0] ? ~(8'b1 << digit) : 8'hff;

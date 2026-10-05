@@ -89,7 +89,7 @@ JA 是 12 针 Pmod 接口：JA1–JA4、JA7–JA10 是上述 8 路数字输出�
 
 固件编译需要 64 位 Windows、PowerShell 5.1 或 7，以及已加入 PATH 的 Python 3。直接运行 `.\scripts\build_freertos.ps1` 即可：首次调用会自动从 GitHub 下载固定的 xPack RISC-V GCC **15.2.0-1** ZIP，校验 SHA-256 后解压到 `tools/.local/`；以后复用本地工具链，可离线编译。版本、下载地址与校验值记录在 [tools/toolchain.json](tools/toolchain.json)，工具链和下载缓存均由 Git 忽略。也可提前运行 `.\scripts\setup_toolchain.ps1` 安装工具链。
 
-生成的位流位于 `build/vivado/rv32_realtime_scope.bit`，默认固件为 `build/hex/freertos.hex`。已有工具链可通过 `-ToolchainPrefix` 指定，或设置 `RISCV_TOOLCHAIN_PREFIX` 环境变量；显式参数优先，两者均会跳过自动安装。旧的完整单循环示波器固件仍保留为 `scope.S`，用于兼容回归。
+生成的位流位于 `build/vivado/rv32_realtime_scope.bit`，固件为 `build/hex/freertos.hex`。已有工具链可通过 `-ToolchainPrefix` 指定，或设置 `RISCV_TOOLCHAIN_PREFIX` 环境变量；显式参数优先，两者均会跳过自动安装。
 
 如需同时检查 FreeRTOS 固件的 CAP2/CSV/VCD 导出和 CRC 指令计数，可运行：
 
@@ -116,6 +116,8 @@ JA 是 12 针 Pmod 接口：JA1–JA4、JA7–JA10 是上述 8 路数字输出�
 | UP / DOWN | 更快 / 更慢时基 |
 
 SW3–SW11 和 SW14 未分配功能。RGB0 显示 RUN、HOLD、SINGLE 等待或错误状态；RGB1 显示有效信号、等待触发或无信号状态。LED0 对应实时帧中最早的采样点，LED15 对应最新的采样点。
+
+数码管使用八位十进制显示，前导位补零，例如 1000 显示为 `00001000`。LEFT/RIGHT 依次切换频率（Hz）、周期计数、高电平计数、低电平计数、占空比（0.01% 为单位）和测量状态；SW15 开启后追加九个 CPU 性能计数器页。周期和高/低电平每个计数对应 10 ns。超过 `99,999,999` 的读数显示 `--------`，UART 仍可读取完整数值。固件或 RTL 修改后，需要重新生成位流并下载到板卡。
 
 ## UART 与离线导出
 
@@ -147,10 +149,10 @@ python tools/capture_dump.py capture.cap2 capture.vcd --csv capture.csv
 3. `tb_precise_irq`：两种 PC 实现、MSI/MTI、电平/脉冲和 10 个中断落点，共 80 例，检查连续写与读后清零操作只生效和退休一次
 4. `tb_uart_fifo`：连续接收、顺序、指针回绕、满队列、溢出和同时入队/出队
 5. `tb_freertos_smoke`：官方 RISC-V port、四任务启动、阻塞切换、机器定时器 tick 和抢占式上下文保存
-6. `tb_freertos_scope`：RTOS UART shell、RUN/HOLD、测量/性能响应、SINGLE、CAP2 参数冻结、取消、超时和恢复
-7. `tb_freertos_uart_burst`：按实际 115200 波特率连续发送 `s`、`m`，检查两条响应的顺序和完整性
-8. `tb_scope_core`：8 路固定测试波形、边沿测量、实时波形、采集中修改配置、深度采集和基础交互
-9. `tb_soc_realtime_scope`：兼容验证 JA4/JA9 模拟跳线、CPU、`scope.S`、MMIO 和各外设
+6. `tb_freertos_display`：JA4/JA9 模拟跳线、测量页、十进制进位与溢出边界、八位实际段码扫描
+7. `tb_freertos_scope`：RTOS UART shell、RUN/HOLD、测量/性能响应、SINGLE、CAP2 参数冻结、取消、超时和恢复
+8. `tb_freertos_uart_burst`：按实际 115200 波特率连续发送 `s`、`m`，检查两条响应的顺序和完整性
+9. `tb_scope_core`：8 路固定测试波形、边沿测量、实时波形、采集中修改配置、固定 4096 点深度采集、取消优先级和基础交互
 
 `scripts/test_freertos.ps1` 会先用 GCC 重建 FreeRTOS，再执行全部 RTL/SoC 回归。
 

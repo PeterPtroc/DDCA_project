@@ -2,6 +2,8 @@
 
 本目录包含本 SoC 的启动代码、链接脚本、板级支持和多任务应用。`kernel/` 是从官方 [FreeRTOS-Kernel V11.3.1](https://github.com/FreeRTOS/FreeRTOS-Kernel/tree/V11.3.1) 固定提取的最小源码集合，版本提交为 `3a22924e0a9ddbbc8b0758881c33b3422a5cc20d`，保留原 MIT 许可证与文件头。
 
+数码管由 `board_display_decimal()` 转换为八位十进制，超出八位时显示 `--------`。
+
 在 64 位 Windows 上使用 PowerShell 5.1 或 7，并安装 Python 3、将 `python.exe` 加入 PATH 后，只需运行：
 
 ```powershell

@@ -253,7 +253,7 @@ static void ui_task( void * argument )
                 case 5U: display_value = board_scope_measure_status(); break;
                 default: display_value = board_perf_counter( scope_page - 6U ); break;
             }
-            board_display_hex32( display_value );
+            board_display_decimal( display_value );
         }
         mark_task_seen( 1U << 1 );
         vTaskDelay( pdMS_TO_TICKS( 10 ) );
