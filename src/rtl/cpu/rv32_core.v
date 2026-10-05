@@ -94,10 +94,10 @@ module rv32_core #(
   reg mem2_is_mret, mem2_fence_i;
 
   reg memwb_valid;
-  reg [31:0] memwb_pc, memwb_insn, memwb_alu, memwb_mem_data;
+  reg [31:0] memwb_pc, memwb_insn, memwb_value;
   reg [31:0] memwb_next_pc;
   reg [4:0] memwb_rd;
-  reg memwb_reg_we, memwb_wb_mem, memwb_is_crc;
+  reg memwb_reg_we, memwb_is_crc;
   reg memwb_exc_valid;
   reg [31:0] memwb_exc_cause, memwb_exc_tval;
   reg memwb_csr_we;
@@ -229,7 +229,10 @@ module rv32_core #(
       id_ebreak ? CAUSE_BREAKPOINT : CAUSE_ECALL_M;
   wire [31:0] id_exc_tval = id_illegal ? ifid_insn : 32'd0;
 
-  wire [31:0] wb_value = memwb_wb_mem ? memwb_mem_data : memwb_alu;
+  // Select the completed load/ALU result before the WB register.  Forwarding
+  // and register-file bypass then start directly at a register, without a
+  // high-fanout writeback-select mux on every EX operand path.
+  wire [31:0] wb_value = memwb_value;
   wire rf_we = memwb_valid && memwb_reg_we && !memwb_exc_valid;
   wire [31:0] rf_r1, rf_r2;
   regfile rf (
@@ -298,7 +301,9 @@ module rv32_core #(
       ((ex_a + idex_imm) & 32'hfffffffe) : (idex_pc + idex_imm);
   wire ex_insn_misaligned = idex_valid && ex_control_taken &&
                             (ex_control_target[1:0] != 2'b00);
-  wire [31:0] ex_address = alu_y;
+  // Loads/stores always use rs1 + immediate.  Their alignment check and mtval
+  // must not traverse the shifter/comparator and final ALU result mux.
+  wire [31:0] ex_address = ex_a + idex_imm;
   wire ex_load_misaligned = idex_valid && idex_mem_re &&
       (((idex_insn[14:12] == 3'b001 || idex_insn[14:12] == 3'b101) &&
         ex_address[0]) ||
@@ -313,8 +318,11 @@ module rv32_core #(
   wire [31:0] ex_exc_cause = idex_exc_valid ? idex_exc_cause :
       ex_insn_misaligned ? CAUSE_INSN_MISALIGNED :
       ex_load_misaligned ? CAUSE_LOAD_MISALIGNED : CAUSE_STORE_MISALIGNED;
+  // The opcode determines the possible new exception's address.  mtval is
+  // consumed only when ex_exc_valid is set, so a branch comparison need not
+  // drive this 32-bit mux after deciding whether the exception is taken.
   wire [31:0] ex_exc_tval = idex_exc_valid ? idex_exc_tval :
-      ex_insn_misaligned ? ex_control_target : ex_address;
+      (idex_branch || idex_jump) ? ex_control_target : ex_address;
 
   wire [31:0] csr_forwarded_read =
       (exmem_valid && !exmem_exc_valid && exmem_csr_we &&
@@ -590,13 +598,11 @@ module rv32_core #(
         memwb_valid <= mem2_valid;
         memwb_pc <= mem2_pc;
         memwb_insn <= mem2_insn;
-        memwb_alu <= mem2_alu;
-        memwb_mem_data <= load_value(dmem_rdata, mem2_alu[1:0],
-                                     mem2_mem_funct3);
+        memwb_value <= mem2_wb_mem ?
+            load_value(dmem_rdata, mem2_alu[1:0], mem2_mem_funct3) : mem2_alu;
         memwb_next_pc <= mem2_next_pc;
         memwb_rd <= mem2_rd;
         memwb_reg_we <= mem2_reg_we;
-        memwb_wb_mem <= mem2_wb_mem;
         memwb_is_crc <= mem2_is_crc;
         memwb_exc_valid <= mem2_exc_valid;
         memwb_exc_cause <= mem2_exc_cause;

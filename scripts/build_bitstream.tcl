@@ -1,11 +1,9 @@
-# Complete Windows Vivado implementation flow. Run from PowerShell:
+# Clean synthesis/implementation using exactly the configured GUI runs.
 #   vivado -mode batch -source scripts/build_bitstream.tcl
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
-set build_dir [file join $root build vivado]
-set project_file [file join $build_dir rv32_realtime_scope.xpr]
-set report_dir [file join $build_dir reports]
-set bitstream_file [file join $build_dir rv32_realtime_scope.bit]
+set project_file [file join $root build vivado rv32_realtime_scope.xpr]
+cd $root
 if {[info exists ::env(PC_NEXT_STYLE)]} {
     set pc_next_style $::env(PC_NEXT_STYLE)
 } else {
@@ -15,77 +13,38 @@ if {$pc_next_style ni {0 1}} {
     error "PC_NEXT_STYLE must be 0 (PC CE) or 1 (pc_next)"
 }
 
-if {![file exists $project_file]} {
-    error "Vivado project not found: run scripts/create_vivado_project.tcl first"
+if {[file exists $project_file]} {
+    open_project $project_file
+} else {
+    source [file join $script_dir create_vivado_project.tcl]
 }
-
-file mkdir $report_dir
-open_project $project_file
 source [file join $script_dir configure_firmware.tcl]
-
-# Keep output locations consistent with the repository's batch workflow.
-cd $root
-synth_design -top nexys_a7_top -part xc7a100tcsg324-1 \
-    -generic [list CPU_PC_NEXT_STYLE=$pc_next_style "IMEM_HEX=\"$ddca_firmware_file\""]
-puts "SYNTHESIS PASS"
-write_checkpoint -force [file join $build_dir rv32_realtime_scope_synth.dcp]
-opt_design
-place_design -directive ExtraPostPlacementOpt
-phys_opt_design -directive AggressiveExplore
-route_design -directive AggressiveExplore
-
-# Give a genuinely marginal result one timing-focused retry before applying
-# the hard gate below.  Large violations need an RTL pipeline fix; post-route
-# physical optimization is not effective below roughly -0.5 ns.  The clock
-# constraint and path exceptions remain unchanged.
-set preliminary_setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
-if {[llength $preliminary_setup_path] != 0 &&
-    [get_property SLACK $preliminary_setup_path] >= -0.500 &&
-    [get_property SLACK $preliminary_setup_path] < 0.100} {
-    puts "TIMING RETRY: post-route WNS=[get_property SLACK $preliminary_setup_path] ns"
-    phys_opt_design -directive AggressiveExplore
-    route_design -directive NoTimingRelaxation
-}
-write_checkpoint -force [file join $build_dir rv32_realtime_scope_routed.dcp]
-
-report_utilization -hierarchical -file [file join $report_dir utilization_routed.rpt] -force
-report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose \
-    -max_paths 20 -file [file join $report_dir timing_summary_routed.rpt]
-report_clock_utilization -file [file join $report_dir clock_utilization_routed.rpt]
-check_timing -verbose -file [file join $report_dir check_timing_routed.rpt]
-report_drc -name final_drc -file [file join $report_dir drc_routed.rpt]
-report_methodology -file [file join $report_dir methodology_routed.rpt]
-
-set setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
-set hold_path [get_timing_paths -quiet -delay_type min -max_paths 1]
-if {[llength $setup_path] == 0 || [llength $hold_path] == 0} {
-    error "Timing analysis did not return both setup and hold paths"
-}
-
-set setup_wns [get_property SLACK $setup_path]
-set hold_wns [get_property SLACK $hold_path]
-puts "TIMING: setup WNS=$setup_wns ns, hold WNS=$hold_wns ns"
-# The old build-only smoke check stopped after elaboration/synthesis and could
-# produce a false green. Refuse bitstream generation when routed timing fails.
-if {$setup_wns < 0.0 || $hold_wns < 0.0} {
-    error "Timing failed: setup WNS=$setup_wns ns, hold WNS=$hold_wns ns"
-}
-
-set blocking_drc {}
-foreach violation [get_drc_violations -quiet] {
-    set severity [get_property SEVERITY $violation]
-    if {$severity eq "Error" || $severity eq "Critical Warning"} {
-        lappend blocking_drc "[get_property ID $violation] ($severity)"
+source [file join $script_dir configure_timing.tcl]
+# Preserve the absolute firmware path and any other existing generics.
+set build_generics {}
+foreach generic [get_property generic [get_filesets sources_1]] {
+    if {![string match {CPU_PC_NEXT_STYLE=*} $generic]} {
+        lappend build_generics $generic
     }
 }
-if {[llength $blocking_drc] != 0} {
-    error "Blocking DRC violations: $blocking_drc"
-}
-puts "IMPLEMENTATION PASS"
-puts "DRC PASS"
+lappend build_generics "CPU_PC_NEXT_STYLE=$pc_next_style"
+set_property generic $build_generics [get_filesets sources_1]
 
-# Reaching bitgen now proves routing, setup/hold timing, and blocking DRCs all
-# passed; it does not claim that warning-level findings or hardware tests passed.
-write_bitstream -force $bitstream_file
-puts "BITSTREAM PASS: $bitstream_file"
+# Do not reuse a stale or incremental checkpoint when measuring timing margin.
+reset_run synth_1
+launch_runs synth_1 -jobs 4
+wait_on_run synth_1
+if {[get_property STATUS [get_runs synth_1]] ne "synth_design Complete!"} {
+    error "Synthesis failed: [get_property STATUS [get_runs synth_1]]"
+}
+puts "SYNTHESIS PASS"
+
+# finalize_timing.tcl checks routed WNS >= +0.100 ns, hold and DRC. Bitgen's
+# PRE hook checks the margin again; its POST hook publishes the canonical bit.
+launch_runs impl_1 -to_step write_bitstream -jobs 4
+wait_on_run impl_1
+if {[get_property STATUS [get_runs impl_1]] ne "write_bitstream Complete!"} {
+    error "Implementation/bitstream failed: [get_property STATUS [get_runs impl_1]]"
+}
+puts "BITSTREAM PASS: [file join $root build vivado rv32_realtime_scope.bit]"
 close_project

@@ -27,6 +27,8 @@ JB1 异步输入
 
 `rv32_core` 是六级流水 `RV32I + Zicsr` 实现，流水级为 IF、ID、EX、数据请求、数据响应和 WB。除多级数据前递、加载-使用互锁、分支冲刷、自定义 `CRC16.B`、提交跟踪和性能事件外，还实现了机器态 CSR、`ECALL/EBREAK/MRET`、宽度访存与精确 trap。异常信息沿流水线传播到 WB，寄存器和 CSR 在 WB 更新。访存请求在数据请求级生效，读后清零等 MMIO 读取也属于副作用；若中断到来时响应级仍有已发出的访存，CPU 停住年轻指令并禁止新请求，先将这次访存推进到 WB 退休，再进入中断。已采样的中断请求与原因会保留到该边界，`mepc` 指向最后退休指令的下一 PC，返回后不会重放已生效访存。同步异常、MRET 和 FENCE.I 也阻止年轻访存越过其边界。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。前递选择在 ID 阶段提前计算，避免把寄存器号比较器放在 EX 到 PC/ALU 的关键路径上。
 
+写回数据在进入 WB 寄存器之前完成加载结果与 ALU 结果选择，WB 前递与寄存器堆旁路直接使用该寄存器的输出。访存对齐检查与异常地址使用专用的 `rs1 + immediate` 路径，避免经过移位、比较和 ALU 结果选择逻辑。异常地址由指令类型提前选择，仅在异常有效时被提交；这些调整不增加流水级或访存延迟。
+
 实现的 CSR 为 `mstatus/misa/mie/mtvec/mscratch/mepc/mcause/mtval/mip/mhartid/mcycle/minstret`（含两个 64 位计数器的高半 CSR）。异常覆盖非法指令、M-mode ECALL、EBREAK、指令地址未对齐和 load/store 未对齐；异步中断覆盖 MSI 和 MTI。处理器始终运行在 M-mode，不包含 S-mode、MMU、PMP、PLIC 或 RV32M。
 
 指令和数据存储器各为 64 KiB。取指端口在下降沿采样；EX 先寄存有效地址，再由数据请求级在上升沿访问同步 BRAM/MMIO，响应级保留对应元数据，下一上升沿才进入 WB。这样地址生成、外设译码和加载写回各自获得完整的 10 ns 周期。ROM 的第二只读端口映射到数据总线 `0x00000000..0x0000ffff`，供 C 运行时复制 `.data` 并访问 `.rodata`。RAM 位于 `0x10000000..0x1000ffff`，栈顶为 `0x10010000` 且保持 16 字节对齐。
@@ -90,4 +92,19 @@ CRC 使用初值 `0xffff` 和多项式 `0xa001`，校验范围包括包头和数
 
 ## 顶层与时序
 
-`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、8 位 `pmod_ja` 固定输出和唯一的测量输入 JB1。用于生成位流的工程显式列出所有 RTL 源文件。实现脚本写入位流前会检查布线后的建立和保持时序裕量，两者必须均为非负值；DRC 也不能含有 `Error` 或 `Critical Warning`。
+`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、8 位 `pmod_ja` 固定输出和唯一的测量输入 JB1。用于生成位流的工程显式列出所有 RTL 源文件。
+
+GUI 与批处理共用 `scripts/configure_timing.tcl` 的实现设置：`ExtraPostPlacementOpt` 布局、`AggressiveExplore` 物理优化及布线。如果布线后 WNS 在 −0.500 ns 至 +0.100 ns 之间且未达到目标，执行一次物理优化与 `NoTimingRelaxation` 布线重试。`finalize_timing.tcl` 保存最终报告和检查点，再检查 WNS ≥ +0.100 ns、保持裕量 ≥ 0 ns，以及无 `Error` / `Critical Warning` 级 DRC。生成位流前再次检查时序门槛，避免从不达标的布线结果继续生成位流。TNS 是负裕量总和，全部建立路径通过时为 0 ns。
+
+时钟仍为 100 MHz，取指 BRAM 的半周期路径仍按 5 ns 分析。构建没有增加内部假路径或多周期例外。验收结果见 `build/vivado/reports/timing_summary_routed.rpt`，GUI 和批处理均将通过检查的位流发布到 `build/vivado/rv32_realtime_scope.bit`。余量要求适用于当前 RTL、固件、器件与工具版本；修改这些输入后需要重新实现。
+
+2026-10-05 使用 Vivado 2024.2、`xc7a100tcsg324-1` 和现有 FreeRTOS 固件验证，默认 `CPU_PC_NEXT_STYLE=0`：
+
+| 实现 | WNS (ns) | TNS (ns) | WHS (ns) |
+| --- | ---: | ---: | ---: |
+| 优化前 GUI 工程 | −0.110 | −0.110 | +0.064 |
+| 优化前批处理 | +0.128 | 0.000 | +0.064 |
+| 优化后直接综合/实现验证 | +0.315 | 0.000 | +0.061 |
+| 优化后统一工程流程干净重建（2 次） | +0.315 | 0.000 | +0.061 |
+
+三次优化后实现均未触发布线重试。完整 `scripts/test.ps1` 回归通过，覆盖指令提交差分、宽度访存与异常、80 组精确中断、FreeRTOS、UART 和示波器功能。验收脚本在独立检查点会话中也通过了反向验证：人为加严时钟不确定度后，+0.065 ns 的不足裕量、负建立裕量与负保持裕量均被拒绝；这些临时约束未写回工程。报告、回归日志和输入 SHA-256 清单位于 `build/timing_closure/`。

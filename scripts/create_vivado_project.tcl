@@ -43,4 +43,5 @@ add_files -norecurse $production_sources
 add_files -fileset constrs_1 -norecurse [file join $root constraints nexys_a7_100t.xdc]
 set_property top nexys_a7_top [current_fileset]
 source [file join $script_dir configure_firmware.tcl]
+source [file join $script_dir configure_timing.tcl]
 puts "Vivado project created at $build_dir"

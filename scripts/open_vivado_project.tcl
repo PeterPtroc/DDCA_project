@@ -9,4 +9,5 @@ if {[file exists $project_file]} {
     source [file join $script_dir create_vivado_project.tcl]
 }
 source [file join $script_dir configure_firmware.tcl]
+source [file join $script_dir configure_timing.tcl]
 puts "VIVADO PROJECT READY: $project_file"
