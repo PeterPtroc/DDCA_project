@@ -6,6 +6,8 @@
 
 按以下顺序逐阶段验收。具体状态与验收条件保存在 [ptrocos-roadmap.json](ptrocos-roadmap.json)。
 
+图形与媒体接口分别见 [DDR framebuffer 与 VGA graphics](ptrocos-graphics.md)和 [BMP 显示与 WAV 播放](ptrocos-media.md)。
+
 1. 保留正确 CPU 基线。
 2. RV32M 与独立 ISA 测试。
 3. DDR2 与 DMA。
@@ -99,6 +101,7 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 | `0x4000c000` | PS/2 键盘接收 |
 | `0x4000d000` | SD SPI 字节交换与电源控制 |
 | `0x4000e000` | DDR framebuffer 控制与扫描状态 |
+| `0x4000f000` | PCM FIFO、采样率与音频播放状态 |
 | `0x80000000..0x87ffffff` | 128 MiB DDR2 |
 
 图形阶段的软件绘图接口、两个 DDR 帧缓冲、AXI 读仲裁、跨时钟行队列和验收入口见 [ptrocos-graphics.md](ptrocos-graphics.md)。

@@ -94,8 +94,16 @@
     {
       "order": 9,
       "name": "BMP and WAV",
-      "status": "pending",
-      "acceptance": "Validated format limits, SD streaming, image display and audio playback on board."
+      "status": "verified_in_native_unit_soc_simulation_routed_timing_and_uart_hardware",
+      "acceptance": "Validated format limits, SD streaming, image display and audio playback on board.",
+      "evidence": "ptrocos-media-validation.json",
+      "pending_acceptance": [
+        "Real SD BMP/WAV playback: controller reports no-card",
+        "Physical VGA display: monitor not connected",
+        "J8 analog waveform and listening test",
+        "Physical keyboard input: deferred by user"
+      ],
+      "blocks_next_stage": false
     },
     {
       "order": 10,

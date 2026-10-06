@@ -6,6 +6,9 @@ const char *const shell_commands[]={"help","echo","clear","uname","uptime","mem"
 #endif
 #ifdef PTROCOS_GRAPHICS
     ,"gfx"
+#ifdef PTROCOS_MEDIA
+    ,"bmp","wav","audio"
+#endif
 #endif
 };
 const unsigned shell_command_count=sizeof(shell_commands)/sizeof(shell_commands[0]);

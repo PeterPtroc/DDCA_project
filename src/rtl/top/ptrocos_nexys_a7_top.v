@@ -15,6 +15,7 @@ module ptrocos_nexys_a7_top #(
     output wire sd_sck, sd_mosi, sd_cs_n, sd_reset,
     output wire [3:0] vga_red, vga_green, vga_blue,
     output wire vga_hsync, vga_vsync,
+    output wire aud_pwm,aud_sd,
     output wire [7:0] pmod_ja,
     input wire jb1,
     output wire [7:0] seg_an,
@@ -28,6 +29,9 @@ module ptrocos_nexys_a7_top #(
     inout wire [15:0] ddr2_dq,
     inout wire [1:0] ddr2_dqs_p, ddr2_dqs_n
 );
+  wire audio_bit;
+  // Nexys A7 analog rail supplies the pull-up: never drive a logic high.
+  assign aud_pwm=audio_bit ? 1'bz : 1'b0;
   wire cpu_clk, ui_clk, ui_sync_rst, mig_locked, calibrated, reference_clk200;
   wire clock_input, reference_raw, feedback_raw, feedback, reference_locked;
   // One input buffer and global 100 MHz clock feed both CPU and MIG. The MIG
@@ -91,6 +95,7 @@ module ptrocos_nexys_a7_top #(
       .ui_clk(ui_clk),.ui_rst(ui_rst),
       .pixel_clk(pixel_clk),.pixel_rst(pixel_rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
       .sd_miso(sd_miso),.sd_cd_n(sd_cd_n),.sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset),
+      .audio_bit(audio_bit),.audio_enable(aud_sd),
       .vga_red(vga_red),.vga_green(vga_green),.vga_blue(vga_blue),.vga_hsync(vga_hsync),.vga_vsync(vga_vsync),
       .uart_rx(uart_rx),.uart_tx(uart_tx),.led(led),.seg_an(seg_an),.seg(seg),.seg_dp(seg_dp),
       .rgb0_r(rgb0_r),.rgb0_g(rgb0_g),.rgb0_b(rgb0_b),.rgb1_r(rgb1_r),.rgb1_g(rgb1_g),.rgb1_b(rgb1_b),

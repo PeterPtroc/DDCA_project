@@ -4,7 +4,7 @@ cd $root
 set ptrocos_firmware ddr2
 set reuse false
 foreach arg $argv {
-    if {$arg eq "reuse"} {set reuse true} elseif {$arg in {ddr2 text shell storage graphics}} {set ptrocos_firmware $arg} else {error "Unknown argument: $arg"}
+    if {$arg eq "reuse"} {set reuse true} elseif {$arg in {ddr2 text shell storage graphics media}} {set ptrocos_firmware $arg} else {error "Unknown argument: $arg"}
 }
 if {$ptrocos_firmware eq "ddr2"} {set project_folder ptrocos_vivado} else {set project_folder ptrocos_${ptrocos_firmware}_vivado}
 if {$reuse} {
@@ -13,6 +13,8 @@ if {$reuse} {
     set rom_hook [file join $script_dir optimize_ptrocos_rom.tcl]
     if {![llength [get_files -quiet $rom_hook]]} {add_files -fileset utils_1 -norecurse $rom_hook}
     set_property STEPS.PLACE_DESIGN.TCL.POST $rom_hook [get_runs impl_1]
+    set_property PROCESSING_ORDER LATE [get_files ptrocos_audio.xdc]
+    set_property USED_IN_SYNTHESIS false [get_files ptrocos_audio.xdc]
     reset_run synth_1
 } else {
     source [file join $script_dir create_ptrocos_project.tcl]

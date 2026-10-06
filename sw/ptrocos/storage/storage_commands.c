@@ -7,6 +7,9 @@
 #include "semphr.h"
 #include "ff.h"
 #include <string.h>
+#ifdef PTROCOS_MEDIA
+#include "media/media_commands.h"
+#endif
 static SemaphoreHandle_t lock;
 static FATFS filesystem;
 static unsigned mounted;
@@ -155,13 +158,17 @@ int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const
     if(!argc) return 0;
     const char *name=argv[0];
     unsigned command=same(name,"mount") ? 1 : same(name,"umount") ? 2 : same(name,"sdinfo") ? 3 :
-        same(name,"fscheck") ? 4 : same(name,"ls") ? 5 : same(name,"cat") ? 6 : same(name,"hexdump") ? 7 : 0;
+        same(name,"fscheck") ? 4 : same(name,"ls") ? 5 : same(name,"cat") ? 6 : same(name,"hexdump") ? 7 :
+#ifdef PTROCOS_MEDIA
+        same(name,"bmp") ? 8 : same(name,"wav") ? 9 :
+#endif
+        0;
     if(!command) return 0;
     struct output out={write,write_byte,context,cancel};uint32_t offset=0,count=256;
-    if((command<=3 && argc!=1) || ((command==4 || command==6) && argc!=2) ||
+    if((command>=8 && argc!=2) || (command<=3 && argc!=1) || ((command==4 || command==6) && argc!=2) ||
        (command==5 && argc>2) || (command==7 && (argc<2 || argc>4 ||
        (argc>=3 && !shell_u32(argv[2],&offset)) || (argc==4 && !shell_u32(argv[3],&count)) || count>4096))) {
-        put(&out,command==5 ? "usage: ls [path]\r\n" : command==6 ? "usage: cat <path>\r\n" :
+        put(&out,command>=8 ? "usage: bmp <path> | wav <path>\r\n" : command==5 ? "usage: ls [path]\r\n" : command==6 ? "usage: cat <path>\r\n" :
             command==7 ? "usage: hexdump <path> [offset] [count 0..4096] (decimal)\r\n" :
             "usage: mount | umount | sdinfo | fscheck <path>\r\n");return 1;
     }
@@ -181,7 +188,18 @@ int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const
     } else if(command==4) check_file(&out,argv[1]);
     else if(command==5) list(&out,argc==2 ? argv[1] : "0:/");
     else if(command==6) cat(&out,argv[1]);
-    else hexdump(&out,argv[1],offset,count);
+    else if(command==7) hexdump(&out,argv[1],offset,count);
+#ifdef PTROCOS_MEDIA
+    else if(!mounted) put(&out,"mount the SD card first\r\n");
+    else {
+        FIL file;FRESULT result=f_open(&file,argv[1],FA_READ);
+        if(result==FR_OK) {
+            result=ptrocos_media_file(&file,command==9,write,context,cancel);
+            FRESULT closed=f_close(&file);if(result==FR_OK) result=closed;
+        }
+        if(result!=FR_OK && !*cancel) error(&out,result);
+    }
+#endif
     if(!ptrocos_storage_disk_card()->initialized) mounted=0;
     ptrocos_sd_cancel_source(NULL);
     configASSERT(xSemaphoreGive(lock)==pdTRUE);return 1;

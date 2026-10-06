@@ -21,6 +21,7 @@ module ptrocos_soc #(
     output wire sd_sck, sd_mosi, sd_cs_n, sd_reset,
     output wire [3:0] vga_red, vga_green, vga_blue,
     output wire vga_hsync, vga_vsync,
+    output wire audio_bit,audio_enable,
     output wire [15:0] led,
     output wire uart_tx,
     output wire [7:0] seg_an,
@@ -80,6 +81,10 @@ module ptrocos_soc #(
   wire keyboard_sel = da[31:12] == 20'h4000c;
   wire sd_sel = da[31:12] == 20'h4000d;
   wire graphics_sel = da[31:12] == 20'h4000e;
+  wire audio_sel = da[31:12] == 20'h4000f;
+  wire [31:0] audio_rdata;
+  pcm_audio audio(.clk(clk),.rst(rst),.valid(dv && audio_sel),.we(dwe),.wstrb(dstrb),
+      .addr(da),.wdata(dw),.rdata(audio_rdata),.audio_bit(audio_bit),.audio_enable(audio_enable));
   wire vga_cell_sel = da[31:14] == 18'h10004;
   wire rom_sel = da[31:16] == 16'h0000;
   wire ram_sel = da[31:16] == 16'h1000;
@@ -136,7 +141,7 @@ module ptrocos_soc #(
       .EDGE_INITIAL_TIMEOUT_TICKS(EDGE_INITIAL_TIMEOUT_TICKS),
       .LIVE_AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES)
   ) bus (
-      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel && !sd_sel && !graphics_sel), .we(dwe), .addr(da), .wdata(dw),
+      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel && !sd_sel && !graphics_sel && !audio_sel), .we(dwe), .addr(da), .wdata(dw),
       .sw(sw), .btn(btn), .capture_in(capture_in), .uart_rx_i(uart_rx),
       .retire(rv), .stall(es), .fwd_ex(ef),
       .fwd_wb(wf), .flush(fl), .branch(br), .branch_taken(bt), .crc(crc),
@@ -213,7 +218,7 @@ module ptrocos_soc #(
         read_region <= 2'd1;
       else if (clint_sel || da[31:28] == 4'h4) begin
         read_region <= 2'd2;
-        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : sd_sel ? sd_rdata : graphics_sel ? graphics_rdata : mmio_r;
+        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : sd_sel ? sd_rdata : graphics_sel ? graphics_rdata : audio_sel ? audio_rdata : mmio_r;
       end else
         read_region <= 2'd0;
     end

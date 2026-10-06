@@ -11,6 +11,31 @@ if {[file tail [file dirname $out]] eq "ptrocos.runs"} {
 }
 set reports [file join $out reports]
 file mkdir $reports
+if {[llength [get_ports -quiet aud_pwm]]} {
+    # The A7 analog supply owns the pull-up. Prove the implemented pin can only
+    # sink current or float; a push-pull output would violate the board manual.
+    set audio_net [get_nets -of_objects [get_ports aud_pwm]]
+    set audio_buffer [get_cells -of_objects $audio_net -filter {REF_NAME == OBUFT}]
+    if {[llength $audio_buffer]!=1} {error "Audio PWM must use one OBUFT"}
+    set audio_i [get_pins -of_objects $audio_buffer -filter {REF_PIN_NAME == I}]
+    set audio_i_net [get_nets -segments -of_objects $audio_i]
+    set audio_ground [get_cells -of_objects $audio_i_net -filter {REF_NAME == GND}]
+    if {![llength $audio_ground]} {error "Audio OBUFT data input must be constant zero"}
+    foreach {port pin} {aud_pwm A11 aud_sd D12} {
+        if {[get_property PACKAGE_PIN [get_ports $port]] ne $pin ||
+            [get_property IOSTANDARD [get_ports $port]] ne "LVCMOS33"} {
+            error "Incorrect audio pin assignment: $port"
+        }
+        set audio_paths [get_timing_paths -quiet -to [get_ports $port] -delay_type max -max_paths 100]
+        if {![llength $audio_paths]} {error "Missing register-to-audio-pin paths: $port"}
+        foreach path $audio_paths {
+            if {[get_property EXCEPTION $path] ne "MaxDelay Path 10.000ns -datapath_only"} {
+                error "Missing 10ns audio propagation bound: $port"
+            }
+        }
+    }
+    puts "PTROCOS AUDIO ELECTRICAL PASS: A11 OBUFT I=GND, D12 amplifier enable"
+}
 foreach {clock_pin expected_period} {cpu_clock/O 10.000 reference_clock/O 5.000 pixel_clock/O 39.682540} {
     set clocks [get_clocks -of_objects [get_pins $clock_pin]]
     if {[llength $clocks]!=1 || abs([get_property PERIOD $clocks]-$expected_period)>0.001} {
@@ -92,8 +117,18 @@ if {[llength [get_cells -hier -quiet -regexp {.*soc/sd/(miso|detect)_sync_reg\[0
 set preliminary [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $preliminary] && [get_property SLACK $preliminary]>=-0.500 &&
     [get_property SLACK $preliminary]<0.100} {
-    phys_opt_design -directive AggressiveExplore
-    route_design -directive NoTimingRelaxation
+    if {[file tail $out] eq "ptrocos_media_vivado"} {
+        # Physical optimization otherwise ignores positive slack below our
+        # acceptance margin. Optimize against a tighter target, then restore
+        # the normal clock uncertainty before reporting or emitting the bit.
+        set_clock_uncertainty -setup 0.150 [get_clocks sys_clk]
+        phys_opt_design -placement_opt -routing_opt
+        route_design -directive Explore
+        set_clock_uncertainty -setup 0.000 [get_clocks sys_clk]
+    } else {
+        phys_opt_design -directive AggressiveExplore
+        route_design -directive NoTimingRelaxation
+    }
 }
 write_checkpoint -force [file join $out ptrocos_routed.dcp]
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose -max_paths 20 -file [file join $reports timing_summary.rpt]

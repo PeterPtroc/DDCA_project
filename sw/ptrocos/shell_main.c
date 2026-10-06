@@ -8,6 +8,9 @@
 #include "tty.h"
 #include "shell.h"
 #include <string.h>
+#ifdef PTROCOS_MEDIA
+#include "media/audio.h"
+#endif
 #ifdef PTROCOS_GRAPHICS
 #include "graphics.h"
 #endif
@@ -150,6 +153,9 @@ static void command(void *context,const char *input)
 #ifdef PTROCOS_GRAPHICS
     else if(ptrocos_graphics_command(argc,argv,output,s,&s->abort)) { }
 #endif
+    #ifdef PTROCOS_MEDIA
+    else if(ptrocos_audio_command(argc,argv,output,s,&s->abort)) { }
+#endif
     else if(argc!=1) output(s,"unexpected arguments\r\n");
     else if(same(name,"help")) {
         for(unsigned i=0;i<shell_command_count && !s->abort;i++) {
@@ -260,6 +266,9 @@ int main(void)
     ptrocos_text_clear();PTROCOS_MMIO32(0x4000c018U)=3;
 #ifdef PTROCOS_GRAPHICS
     ptrocos_graphics_init();
+#ifdef PTROCOS_MEDIA
+    ptrocos_audio_init();
+#endif
 #endif
     #ifdef PTROCOS_STORAGE
     ptrocos_storage_init();
