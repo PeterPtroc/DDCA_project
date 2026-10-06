@@ -8,6 +8,9 @@ const char *const shell_commands[]={"help","echo","clear","uname","uptime","mem"
     ,"gfx"
 #ifdef PTROCOS_MEDIA
     ,"bmp","wav","audio"
+#ifdef PTROCOS_VIDEO
+    ,"play"
+#endif
 #endif
 #endif
 };

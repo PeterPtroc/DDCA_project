@@ -106,6 +106,8 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 
 图形阶段的软件绘图接口、两个 DDR 帧缓冲、AXI 读仲裁、跨时钟行队列和验收入口见 [ptrocos-graphics.md](ptrocos-graphics.md)。
 
+自定义视频的文件格式、主机转换器、黑白 DDR 帧环和按音频时钟播放的接口见 [ptrocos-video.md](ptrocos-video.md)。
+
 DMA 偏移 `0/4/8` 分别设置源地址、目标地址和数据字数量，`0x0c` 为命令，`0x10` 为状态，`0x14` 为已复制数据字数量。命令位 `0/1/2` 分别为启动、取消、清除状态；状态低三位为 busy/done/error，错误码在 `[15:8]`。
 
 ```powershell

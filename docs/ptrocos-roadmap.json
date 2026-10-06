@@ -108,8 +108,16 @@
     {
       "order": 10,
       "name": "Custom video and Bad Apple",
-      "status": "pending",
-      "acceptance": "Documented asset format and host converter, bounded buffers, timed playback and dropped-frame accounting."
+      "status": "verified_in_native_unit_soc_simulation_routed_timing_and_uart_hardware",
+      "acceptance": "Documented asset format and host converter, bounded buffers, timed playback and dropped-frame accounting.",
+      "evidence": "ptrocos-video-validation.json",
+      "pending_acceptance": [
+        "Real SD Bad Apple playback: controller reports no-card",
+        "Physical VGA display: monitor not connected",
+        "J8 analog waveform and listening test",
+        "Physical keyboard input: deferred by user"
+      ],
+      "blocks_next_stage": false
     },
     {
       "order": 11,

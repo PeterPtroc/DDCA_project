@@ -4,6 +4,9 @@
 #include "graphics.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#ifdef PTROCOS_VIDEO
+#include "video_player.h"
+#endif
 // Storage serialization protects this workspace and each file stream.
 static struct media_work work;
 struct stream {FIL *file;FRESULT error;const volatile uint32_t *cancel;};
@@ -31,12 +34,16 @@ static void number(void (*write)(void *,const char *),void *context,const char *
     do {text[--p]=(char)('0'+n%10);n/=10;} while(n);
     write(context,name);write(context,&text[p]);
 }
-FRESULT ptrocos_media_file(FIL *file,unsigned wav,void (*write)(void *,const char *),
+FRESULT ptrocos_media_file(FIL *file,unsigned kind,void (*write)(void *,const char *),
     void *context,const volatile uint32_t *cancel)
 {
     struct stream stream={file,FR_OK,cancel};
     struct media_source source={(uint32_t)f_size(file),read_at,cancelled,&stream};int result;
-    if(wav) {
+#ifdef PTROCOS_VIDEO
+    if(kind==2) result=ptrocos_video_play(&source,&work,write,context,cancel);
+    else
+#endif
+    if(kind==1) {
         struct media_wav header;struct ptrocos_audio audio={0};
         result=media_wav_open(&source,&header);
         if(!result) {

@@ -26,6 +26,7 @@ int ptrocos_graphics_row(struct ptrocos_canvas *canvas,unsigned row,const uint32
 int ptrocos_graphics_present(struct ptrocos_canvas *canvas)
 {assert(canvas->owned && rows==480);memcpy(front,back,sizeof(front));frames++;canvas->owned=0;return GFX_OK;}
 void ptrocos_graphics_abort(struct ptrocos_canvas *canvas) {canvas->owned=0;}
+#ifndef PTROCOS_VIDEO
 void ptrocos_audio_init(void) { }
 int ptrocos_audio_begin(struct ptrocos_audio *a,uint32_t rate,const volatile uint32_t *cancel)
 {assert(rate>=8000 && rate<=48000);a->owned=1;a->cancel=cancel;samples=0;audio_done=0;return MEDIA_OK;}
@@ -38,3 +39,4 @@ int ptrocos_audio_feed(struct ptrocos_audio *a,const uint16_t *values,unsigned c
 int ptrocos_audio_end(struct ptrocos_audio *a) {assert(a->owned);audio_done=1;a->owned=0;return MEDIA_OK;}
 void ptrocos_audio_abort(struct ptrocos_audio *a) {if(a->owned) {a->owned=0;audio_done=0;}}
 void vTaskDelay(unsigned ticks) {(void)ticks;storage_native_yield();}
+#endif

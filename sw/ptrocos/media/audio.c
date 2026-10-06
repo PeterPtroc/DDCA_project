@@ -16,7 +16,7 @@ void ptrocos_audio_init(void)
 }
 int ptrocos_audio_begin(struct ptrocos_audio *a,uint32_t rate,const volatile uint32_t *cancel)
 {
-    a->owned=0;a->started=0;a->cancel=cancel;
+    a->owned=0;a->started=0;a->manual_start=0;a->cancel=cancel;
     if(rate<8000 || rate>48000) return MEDIA_FORMAT;
     while(xSemaphoreTake(audio_lock,1)!=pdTRUE) if(cancelled(a)) return MEDIA_CANCEL;
     a->owned=1;
@@ -38,7 +38,7 @@ int ptrocos_audio_feed(struct ptrocos_audio *a,const uint16_t *samples,unsigned 
     }
     if(cancelled(a)) return MEDIA_CANCEL;
     for(unsigned i=0;i<count;i++) put(0,samples[i]);
-    if(!a->started && reg(16)>=1024) {put(8,1);a->started=1;}
+    if(!a->started && !a->manual_start && reg(16)>=1024) {put(8,1);a->started=1;}
     return (reg(12)&0x38U) ? MEDIA_OUTPUT : MEDIA_OK;
 }
 int ptrocos_audio_end(struct ptrocos_audio *a)
@@ -58,6 +58,27 @@ int ptrocos_audio_end(struct ptrocos_audio *a)
     else {a->owned=0;(void)xSemaphoreGive(audio_lock);}
     return result;
 }
+#ifdef PTROCOS_VIDEO
+int ptrocos_audio_start(struct ptrocos_audio *a)
+{
+    if(!a->owned || a->started || !reg(16)) return MEDIA_OUTPUT;
+    if(cancelled(a)) return MEDIA_CANCEL;
+    put(8,1);a->started=1;return (reg(12)&0x38U) ? MEDIA_OUTPUT : MEDIA_OK;
+}
+int ptrocos_audio_finish(struct ptrocos_audio *a)
+{
+    if(!a->owned || !a->started) return MEDIA_OUTPUT;
+    put(8,4);return (reg(12)&0x38U) ? MEDIA_OUTPUT : MEDIA_OK;
+}
+int ptrocos_audio_query(const struct ptrocos_audio *a,uint32_t *played,uint32_t *free,unsigned *running)
+{
+    if(!a->owned) return MEDIA_OUTPUT;
+    if(cancelled(a)) return MEDIA_CANCEL;
+    *played=reg(24);*free=4096-reg(16);
+    uint32_t status=reg(12);*running=status&1U;
+    return status&0x38U ? MEDIA_OUTPUT : MEDIA_OK;
+}
+#endif
 static void number(void (*write)(void *,const char *),void *context,const char *label,uint32_t value)
 {
     char text[11];unsigned p=10;text[10]=0;

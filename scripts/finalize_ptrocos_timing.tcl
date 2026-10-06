@@ -117,7 +117,7 @@ if {[llength [get_cells -hier -quiet -regexp {.*soc/sd/(miso|detect)_sync_reg\[0
 set preliminary [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $preliminary] && [get_property SLACK $preliminary]>=-0.500 &&
     [get_property SLACK $preliminary]<0.100} {
-    if {[file tail $out] eq "ptrocos_media_vivado"} {
+    if {[file tail $out] in {ptrocos_media_vivado ptrocos_video_vivado}} {
         # Physical optimization otherwise ignores positive slack below our
         # acceptance margin. Optimize against a tighter target, then restore
         # the normal clock uncertainty before reporting or emitting the bit.

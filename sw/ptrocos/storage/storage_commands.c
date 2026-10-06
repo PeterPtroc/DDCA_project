@@ -161,6 +161,9 @@ int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const
         same(name,"fscheck") ? 4 : same(name,"ls") ? 5 : same(name,"cat") ? 6 : same(name,"hexdump") ? 7 :
 #ifdef PTROCOS_MEDIA
         same(name,"bmp") ? 8 : same(name,"wav") ? 9 :
+#ifdef PTROCOS_VIDEO
+        same(name,"play") ? 10 :
+#endif
 #endif
         0;
     if(!command) return 0;
@@ -168,7 +171,7 @@ int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const
     if((command>=8 && argc!=2) || (command<=3 && argc!=1) || ((command==4 || command==6) && argc!=2) ||
        (command==5 && argc>2) || (command==7 && (argc<2 || argc>4 ||
        (argc>=3 && !shell_u32(argv[2],&offset)) || (argc==4 && !shell_u32(argv[3],&count)) || count>4096))) {
-        put(&out,command>=8 ? "usage: bmp <path> | wav <path>\r\n" : command==5 ? "usage: ls [path]\r\n" : command==6 ? "usage: cat <path>\r\n" :
+        put(&out,command==10 ? "usage: play <path>\r\n" : command>=8 ? "usage: bmp <path> | wav <path>\r\n" : command==5 ? "usage: ls [path]\r\n" : command==6 ? "usage: cat <path>\r\n" :
             command==7 ? "usage: hexdump <path> [offset] [count 0..4096] (decimal)\r\n" :
             "usage: mount | umount | sdinfo | fscheck <path>\r\n");return 1;
     }
@@ -194,7 +197,7 @@ int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const
     else {
         FIL file;FRESULT result=f_open(&file,argv[1],FA_READ);
         if(result==FR_OK) {
-            result=ptrocos_media_file(&file,command==9,write,context,cancel);
+            result=ptrocos_media_file(&file,command==10 ? 2 : command==9,write,context,cancel);
             FRESULT closed=f_close(&file);if(result==FR_OK) result=closed;
         }
         if(result!=FR_OK && !*cancel) error(&out,result);

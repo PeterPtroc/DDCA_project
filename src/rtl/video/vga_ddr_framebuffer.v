@@ -1,5 +1,5 @@
 `default_nettype none
-// RGB565 scanout. Four tagged line slots form a bounded asynchronous line FIFO.
+// RGB565 or 4x monochrome scanout, with a bounded asynchronous line FIFO.
 // A slot is written only while its pixel->UI mailbox is outstanding, and becomes
 // readable only after completion. Pixel ownership lasts through the line's end.
 module vga_ddr_framebuffer #(
@@ -26,6 +26,8 @@ module vga_ddr_framebuffer #(
     output wire [9:0] scan_x,scan_y
 );
   localparam ROW_BEATS=WIDTH/8;
+  localparam MONO_BEATS=((WIDTH+3)/4+127)/128;
+  localparam MONO_HEIGHT=(HEIGHT+3)/4;
   localparam IDLE=0,PREPARE=1,ADDRESS=2,DATA=3,COMPLETE=4;
   (* ram_style="block" *) reg [127:0] lines[0:511];
   wire cv,cw;wire [31:0] ca,cd;wire [3:0] cs;reg [31:0] cr;
@@ -75,17 +77,26 @@ module vga_ddr_framebuffer #(
   reg [2:0] state;
   reg [1:0] slot,round_robin;
   reg [31:0] next_base,next_stride,pending_base,pending_stride,active_base,active_stride,active_epoch;
+  reg [31:0] next_format;
+  reg pending_mono,active_mono;
   reg pending,pending_enable,active_enable,config_fault,dma_fault,underrun_sticky;
   reg [31:0] swaps,frames,underflow_snapshot,read_beats,read_errors;
   reg [31:0] row_address;
   reg [7:0] remaining,burst_count,received;
   reg [6:0] beat_base;
   reg row_bad;
-  wire [63:0] next_end={32'd0,next_base}+({32'd0,next_stride}*(HEIGHT-1))+WIDTH*2;
+  wire next_mono=next_format==1;
+  // Keep each height constant before multiplication. Selecting the height at
+  // the multiplier input creates a general DSP multiply on the commit enable.
+  wire [63:0] next_rgb_end={32'd0,next_base}+({32'd0,next_stride}*(HEIGHT-1))+WIDTH*2;
+  wire [63:0] next_mono_end={32'd0,next_base}+({32'd0,next_stride}*(MONO_HEIGHT-1))+MONO_BEATS*16;
   wire valid_config=next_base>=32'h80000000 && next_base[3:0]==0 && next_stride[3:0]==0 &&
-      next_stride>=WIDTH*2 && next_end<=64'h88000000;
+      next_format<=1 && (next_mono ?
+          (next_stride>=MONO_BEATS*16 && next_mono_end<=64'h88000000) :
+          (next_stride>=WIDTH*2 && next_rgb_end<=64'h88000000));
   assign fr=state==IDLE && fv;
-  assign frame_response={31'd0,(pending && blank_sync[1]) ? pending_enable : active_enable};
+  assign frame_response={30'd0,(pending && blank_sync[1]) ? pending_mono : active_mono,
+      (pending && blank_sync[1]) ? pending_enable : active_enable};
   assign axi_araddr=row_address[26:0];assign axi_arlen=burst_count-1'b1;
   assign axi_arsize=4;assign axi_arburst=1;
   assign axi_arvalid=state==ADDRESS;assign axi_rready=state==DATA;
@@ -107,6 +118,7 @@ module vga_ddr_framebuffer #(
       4:cr=active_base;5:cr=active_stride;6:cr=frames;7:cr=swaps;
       8:cr=underflow_snapshot;9:cr=read_beats;10:cr=read_errors;
       11:cr=(HEIGHT<<16)|WIDTH;12:cr=16'h0565;
+      13:cr=next_format;14:cr={31'd0,active_mono};
       default:cr=0;
     endcase
   end
@@ -127,6 +139,7 @@ module vga_ddr_framebuffer #(
     if(ui_rst) begin
       blank_sync<=0;state<=IDLE;slot<=0;round_robin<=0;
       next_base<=32'h81000000;next_stride<=WIDTH*2;
+      next_format<=0;pending_mono<=0;active_mono<=0;
       pending_base<=0;pending_stride<=0;pending<=0;pending_enable<=0;
       active_base<=32'h81000000;active_stride<=WIDTH*2;active_epoch<=0;active_enable<=0;
       config_fault<=0;dma_fault<=0;underrun_sticky<=0;swaps<=0;frames<=0;
@@ -143,9 +156,13 @@ module vga_ddr_framebuffer #(
           if(cd[2]) begin config_fault<=0;dma_fault<=0;underrun_sticky<=0;end
           if(cd[0]) begin
             if(pending || (cd[1] && !valid_config)) config_fault<=1;
-            else begin pending<=1;pending_enable<=cd[1];pending_base<=next_base;pending_stride<=next_stride;end
+            else begin
+              pending<=1;pending_enable<=cd[1];pending_base<=next_base;pending_stride<=next_stride;
+              pending_mono<=next_mono;
+            end
           end
         end
+        13:if(cs==4'hf) next_format<=cd;
         default:begin end
       endcase
       case(state)
@@ -156,15 +173,17 @@ module vga_ddr_framebuffer #(
           // A late event never changes the front buffer during visible pixels.
           if(pending && blank_sync[1]) begin
             active_base<=pending_base;active_stride<=pending_stride;active_enable<=pending_enable;
+            active_mono<=pending_mono;
             pending<=0;swaps<=swaps+1'b1;
           end
         end else if(choice>=0) begin
           slot<=choice[1:0];round_robin<=choice[1:0]+1'b1;
-          beat_base<=0;remaining<=ROW_BEATS;row_bad<=0;
+          beat_base<=0;remaining<=active_mono ? MONO_BEATS : ROW_BEATS;row_bad<=0;
           if(!active_enable || row_epoch[choice]!=active_epoch || row_number[choice]>=HEIGHT) begin
             row_bad<=1;state<=COMPLETE;
           end else begin
-            row_address<=active_base+row_number[choice]*active_stride;state<=PREPARE;
+            row_address<=active_base+(active_mono ? (row_number[choice]>>2) : row_number[choice])*active_stride;
+            state<=PREPARE;
           end
         end
         PREPARE:begin burst_count<=planned_count;received<=0;state<=ADDRESS;end
@@ -191,7 +210,7 @@ module vga_ddr_framebuffer #(
     end
   end
   reg [31:0] queue_epoch,display_epoch;
-  reg fetch_enable,mode_on,line_good;
+  reg fetch_enable,mode_on,line_good,fetch_mono,display_mono;
   wire [1:0] scan_slot=y[1:0];
   wire line_ready=bank_ready[scan_slot] && !bank_failed[scan_slot] &&
       bank_epoch[scan_slot]==display_epoch && bank_row[scan_slot]==y;
@@ -201,6 +220,7 @@ module vga_ddr_framebuffer #(
     if(pixel_rst) begin
       x<=0;y<=0;wanted_epoch<=0;frame_epoch_hold<=0;frame_under_hold<=0;frame_valid<=0;
       underflows<=0;queue_epoch<=0;display_epoch<=0;fetch_enable<=0;mode_on<=0;line_good<=0;
+      fetch_mono<=0;display_mono<=0;
       swap_window_pixel<=0;
       request<=0;bank_ready<=0;bank_failed<=0;
       for(k=0;k<4;k=k+1) begin
@@ -212,7 +232,7 @@ module vga_ddr_framebuffer #(
         x<=0;
         if(y==V_TOTAL-1) begin
           y<=0;display_epoch<=wanted_epoch;
-          if(queue_epoch==wanted_epoch) mode_on<=fetch_enable;
+          if(queue_epoch==wanted_epoch) begin mode_on<=fetch_enable;display_mono<=fetch_mono;end
         end else y<=y+1'b1;
         if(y<HEIGHT) begin bank_ready[scan_slot]<=0;wanted_row[scan_slot]<=y+4;end
       end else x<=x+1'b1;
@@ -222,6 +242,7 @@ module vga_ddr_framebuffer #(
       end
       if(frame_valid && frame_ready) begin
         frame_valid<=0;queue_epoch<=frame_epoch_hold;fetch_enable<=frame_return[0];
+        fetch_mono<=frame_return[1];
         for(k=0;k<4;k=k+1) begin
           following_row={y[9:2],2'b00}+k;
           if(following_row<=y) following_row=following_row+4;
@@ -247,11 +268,14 @@ module vga_ddr_framebuffer #(
   end
   reg [127:0] scan_word;
   reg [2:0] lane;
+  reg [6:0] mono_lane;
+  reg mono1;
   reg [15:0] pixel;
   reg active1,active2,mode1,mode2;
   always @(posedge pixel_clk) begin
-    scan_word<=lines[{scan_slot,x[9:3]}];lane<=x[2:0];
-    pixel<=scan_word>>{lane,4'b0000};
+    scan_word<=lines[{scan_slot,(display_mono ? {6'd0,x[9]} : x[9:3])}];lane<=x[2:0];
+    mono_lane<=x[8:2];mono1<=display_mono;
+    pixel<=mono1 ? {16{scan_word[mono_lane]}} : scan_word>>{lane,4'b0000};
     active1<=x<WIDTH && y<HEIGHT && mode_on && (x==0 ? line_ready : line_good);
     active2<=active1;mode1<=mode_on;mode2<=mode1;graphics_selected<=mode2;
     if(active2) begin red<=pixel[15:12];green<=pixel[10:7];blue<=pixel[4:1];end

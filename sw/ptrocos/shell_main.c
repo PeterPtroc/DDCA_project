@@ -11,6 +11,9 @@
 #ifdef PTROCOS_MEDIA
 #include "media/audio.h"
 #endif
+#ifdef PTROCOS_VIDEO
+#include "media/video_player.h"
+#endif
 #ifdef PTROCOS_GRAPHICS
 #include "graphics.h"
 #endif
@@ -155,6 +158,9 @@ static void command(void *context,const char *input)
 #endif
     #ifdef PTROCOS_MEDIA
     else if(ptrocos_audio_command(argc,argv,output,s,&s->abort)) { }
+#endif
+#ifdef PTROCOS_VIDEO
+    else if(ptrocos_video_command(argc,argv,output,s,&s->abort)) { }
 #endif
     else if(argc!=1) output(s,"unexpected arguments\r\n");
     else if(same(name,"help")) {

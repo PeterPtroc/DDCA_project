@@ -2,11 +2,11 @@
 # vivado -mode batch -source scripts/program_ptrocos.tcl -tclargs <target-url>
 set root [file normalize [file join [file dirname [info script]] ..]]
 set firmware ddr2
-if {[llength $argv]==2 && [lindex $argv 1] in {ddr2 text shell storage graphics media}} {set firmware [lindex $argv 1]}
+if {[llength $argv]==2 && [lindex $argv 1] in {ddr2 text shell storage graphics media video}} {set firmware [lindex $argv 1]}
 if {$firmware eq "ddr2"} {set folder ptrocos_vivado} else {set folder ptrocos_${firmware}_vivado}
 set bitstream [file join $root build $folder ptrocos_${firmware}.bit]
 if {![file isfile $bitstream]} { error "Run build_ptrocos_bitstream.tcl first" }
-if {[llength $argv]<1 || [llength $argv]>2 || ([llength $argv]==2 && [lindex $argv 1] ni {ddr2 text shell storage graphics media})} { error "Specify target URL, optionally ddr2/text/shell/storage/graphics/media firmware" }
+if {[llength $argv]<1 || [llength $argv]>2 || ([llength $argv]==2 && [lindex $argv 1] ni {ddr2 text shell storage graphics media video})} { error "Specify target URL, optionally ddr2/text/shell/storage/graphics/media/video firmware" }
 open_hw_manager
 connect_hw_server -url TCP:localhost:31234 -allow_non_jtag
 set target [get_hw_targets -quiet [lindex $argv 0]]

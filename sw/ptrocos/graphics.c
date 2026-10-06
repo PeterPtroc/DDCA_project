@@ -54,18 +54,57 @@ void ptrocos_graphics_abort(struct ptrocos_canvas *canvas)
 {
     if(canvas->owned) {canvas->owned=0;(void)xSemaphoreGive(graphics_lock);}
 }
-int ptrocos_graphics_present(struct ptrocos_canvas *canvas)
+static int present_format(struct ptrocos_canvas *canvas,uint32_t stride,uint32_t format)
 {
     if(!canvas->owned) return GFX_INVALID;
     // Stores have reached DDR before the register mailbox publishes this buffer.
     __asm__ volatile("fence iorw,iorw" ::: "memory");
-    put(0,canvas->base);put(4,PTROCOS_GFX_STRIDE);put(8,3);
+    put(0,canvas->base);put(4,stride);put(52,format);put(8,3);
     // A queued flip must drain even if Ctrl+C arrives. A timeout leaves pending
     // visible in hardware; the next begin waits before selecting a back buffer.
     int result=wait_commit();
     if(!result && (reg(16)!=canvas->base || !(reg(12)&1U))) result=GFX_INVALID;
+    return result;
+}
+int ptrocos_graphics_present(struct ptrocos_canvas *canvas)
+{
+    int result=present_format(canvas,PTROCOS_GFX_STRIDE,0);
     ptrocos_graphics_abort(canvas);return result;
 }
+#ifdef PTROCOS_VIDEO
+static uint32_t video_base(const struct ptrocos_video_canvas *v,uint32_t frame)
+{return PTROCOS_VIDEO_RING_BASE+((v->seed+frame)&7U)*4096U;}
+int ptrocos_graphics_video_begin(struct ptrocos_video_canvas *v,const volatile uint32_t *cancel)
+{
+    int result=ptrocos_graphics_begin(&v->canvas,cancel);if(result) return result;
+    uint32_t front=reg(16);
+    v->seed=front>=PTROCOS_VIDEO_RING_BASE && front<PTROCOS_VIDEO_RING_BASE+8*4096U ?
+        ((front-PTROCOS_VIDEO_RING_BASE)/4096U+1U)&7U : 0;
+    return GFX_OK;
+}
+int ptrocos_graphics_video_write(struct ptrocos_video_canvas *v,uint32_t frame,
+    const uint8_t *bits,const volatile uint32_t *cancel)
+{
+    if(!v->canvas.owned || video_base(v,frame)==reg(16)) return GFX_INVALID;
+    volatile uint32_t *destination=(volatile uint32_t *)(uintptr_t)video_base(v,frame);
+    for(unsigned y=0;y<120;y++) {
+        if(cancelled(cancel)) return GFX_CANCELLED;
+        for(unsigned word=0;word<5;word++) {
+            const uint8_t *p=bits+y*20+word*4;
+            destination[y*8+word]=p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);
+        }
+        for(unsigned word=5;word<8;word++) destination[y*8+word]=0;
+        if(!(y&31U)) taskYIELD();
+    }
+    return GFX_OK;
+}
+int ptrocos_graphics_video_present(struct ptrocos_video_canvas *v,uint32_t frame)
+{
+    v->canvas.base=video_base(v,frame);
+    return present_format(&v->canvas,32,1);
+}
+void ptrocos_graphics_video_close(struct ptrocos_video_canvas *v) {ptrocos_graphics_abort(&v->canvas);}
+#endif
 static uint16_t color(unsigned pattern,unsigned x,unsigned y)
 {
     static const uint16_t bars[8]={0xffff,0xffe0,0x07ff,0x07e0,0xf81f,0xf800,0x001f,0};

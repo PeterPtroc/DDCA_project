@@ -15,6 +15,16 @@ int ptrocos_graphics_row(struct ptrocos_canvas *canvas,unsigned row,const uint32
     const volatile uint32_t *cancel);
 int ptrocos_graphics_present(struct ptrocos_canvas *canvas);
 void ptrocos_graphics_abort(struct ptrocos_canvas *canvas);
+#ifdef PTROCOS_VIDEO
+#define PTROCOS_VIDEO_RING_BASE 0x81200000U
+#define PTROCOS_VIDEO_RING_SLOTS 8U
+struct ptrocos_video_canvas {struct ptrocos_canvas canvas;unsigned seed;};
+int ptrocos_graphics_video_begin(struct ptrocos_video_canvas *video,const volatile uint32_t *cancel);
+int ptrocos_graphics_video_write(struct ptrocos_video_canvas *video,uint32_t frame,
+    const uint8_t *bits,const volatile uint32_t *cancel);
+int ptrocos_graphics_video_present(struct ptrocos_video_canvas *video,uint32_t frame);
+void ptrocos_graphics_video_close(struct ptrocos_video_canvas *video);
+#endif
 int ptrocos_graphics_command(unsigned argc,char **argv,void (*write)(void *,const char *),
     void *context,const volatile uint32_t *cancel);
 #endif
