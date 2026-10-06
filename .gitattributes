@@ -4,3 +4,10 @@ third_party/digilent/nexys-a7-100t-mig.prj -text -whitespace
 third_party/font8x8/font8x8_basic.h -text -whitespace
 # Its original seven-equals underline is prose, not a merge-conflict marker.
 third_party/font8x8/README -text -whitespace conflict-marker-size=64
+# FatFs upstream and official patches retain their downloaded bytes.
+third_party/fatfs/upstream/* -text -whitespace
+third_party/fatfs/ff.h -text -whitespace
+third_party/fatfs/diskio.h -text -whitespace
+third_party/fatfs/ffunicode.c -text -whitespace
+third_party/fatfs/ff.c -text -whitespace
+third_party/fatfs/*.diff -text -whitespace

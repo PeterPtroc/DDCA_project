@@ -11,6 +11,8 @@ module ptrocos_nexys_a7_top #(
     input wire uart_rx,
     output wire uart_tx,
     input wire ps2_clk, ps2_data,
+    input wire sd_miso, sd_cd_n,
+    output wire sd_sck, sd_mosi, sd_cs_n, sd_reset,
     output wire [3:0] vga_red, vga_green, vga_blue,
     output wire vga_hsync, vga_vsync,
     output wire [7:0] pmod_ja,
@@ -81,6 +83,7 @@ module ptrocos_nexys_a7_top #(
   ptrocos_soc #(.CPU_PC_NEXT_STYLE(CPU_PC_NEXT_STYLE),.UART_DIVIDER(UART_DIVIDER),.IMEM_HEX(IMEM_HEX)) soc (
       .clk(cpu_clk),.rst(cpu_rst),.sw(sw),.btn(btn),.capture_in({7'd0,jb1}),
       .pixel_clk(pixel_clk),.pixel_rst(pixel_rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
+      .sd_miso(sd_miso),.sd_cd_n(sd_cd_n),.sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset),
       .vga_red(vga_red),.vga_green(vga_green),.vga_blue(vga_blue),.vga_hsync(vga_hsync),.vga_vsync(vga_vsync),
       .uart_rx(uart_rx),.uart_tx(uart_tx),.led(led),.seg_an(seg_an),.seg(seg),.seg_dp(seg_dp),
       .rgb0_r(rgb0_r),.rgb0_g(rgb0_g),.rgb0_b(rgb0_b),.rgb1_r(rgb1_r),.rgb1_g(rgb1_g),.rgb1_b(rgb1_b),

@@ -21,6 +21,8 @@
 
 第 4 阶段的实现、MMIO 与验收范围见 [VGA 文本与 PS/2 键盘](ptrocos-text.md)。键盘实物验收按用户要求延后，VGA 实屏验收等待显示器连接。第 5 阶段的独立 FreeRTOS 配置、双终端和命令见 [PtrocOS 双 TTY 与 shell](ptrocos-shell.md)。
 
+第 6 阶段加入 SD SPI、SDSC/SDHC 驱动和带官方补丁的 FatFs，使用独立 `storage` 固件；接口、挂载与 CRC 命令、测试范围和实卡验收入口见 [SD 与 FatFs](ptrocos-storage.md)。物理键盘延期不阻塞存储与文件命令开发。
+
 ## RV32M 实现
 
 `rv32im_core` 从基线复制而来，通过 `rv32im_decoder` 扩展原译码器；原 `decoder` 文件没有修改。`misa` 返回 `0x40001100`。`rv32m_unit` 实现 `MUL/MULH/MULHSU/MULHU/DIV/DIVU/REM/REMU`，普通运算使用 32 次迭代，除零提前完成。RTL 中没有组合乘法或除法运算符。
@@ -91,6 +93,9 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 | `0x02000000..0x0200ffff` | 原 CLINT 软件/定时器中断 |
 | `0x40001000` | 原 UART，板上 115200 8N1 |
 | `0x4000a000` | DMA 寄存器 |
+| `0x4000b000 / 0x40010000` | VGA 文本控制 / 字符单元 |
+| `0x4000c000` | PS/2 键盘接收 |
+| `0x4000d000` | SD SPI 字节交换与电源控制 |
 | `0x80000000..0x87ffffff` | 128 MiB DDR2 |
 
 DMA 偏移 `0/4/8` 分别设置源地址、目标地址和数据字数量，`0x0c` 为命令，`0x10` 为状态，`0x14` 为已复制数据字数量。命令位 `0/1/2` 分别为启动、取消、清除状态；状态低三位为 busy/done/error，错误码在 `[15:8]`。

@@ -10,17 +10,97 @@
     "Do not begin cache work before the video stage; ELF loading follows cache evaluation."
   ],
   "stages": [
-    {"order": 1, "name": "Freeze known-good CPU", "status": "verified", "acceptance": "Original RTL unchanged; original full regression passes."},
-    {"order": 2, "name": "RV32M and independent ISA tests", "status": "verified_in_simulation_and_internal_ooc_timing", "acceptance": "All eight operations, edge and random vectors, two PC styles, forwarding, precise trap and IRQ, no duplicated MMIO."},
-    {"order": 3, "name": "DDR2 and DMA", "status": "verified_in_soc_simulation_mig_pin_smoke_routed_timing_and_hardware", "acceptance": "MIG calibration, CPU backpressure, byte enables, DMA bounds and arbitration; board memory sweep and CRC.", "evidence": "ptrocos-ddr2-validation.json"},
-    {"order": 4, "name": "VGA text mode and PS/2 keyboard", "status": "verified_in_simulation_routed_timing_and_board_video_status", "acceptance": "640x480 timing, text cells and cursor, PS/2 parity and scan-code decoding, board typing.", "evidence": "ptrocos-text-validation.json", "pending_acceptance": ["Physical VGA display: monitor not connected", "Physical keyboard input: deferred by user on 2026-10-06"], "blocks_next_stage": false},
-    {"order": 5, "name": "PtrocOS TTY and shell", "status": "verified_in_simulation_and_routed_timing", "acceptance": "Editable lines, command dispatch, UART and VGA/keyboard TTY, scheduler remains responsive.", "evidence": "ptrocos-shell-validation.json", "pending_acceptance": ["UART shell on board: USB target is present but FPGA is not detected; board power/connection clarification pending", "Physical VGA and keyboard acceptance remains deferred as recorded in stage 4"], "blocks_next_stage": false},
-    {"order": 6, "name": "SD and FatFs", "status": "pending", "acceptance": "SD initialization and block I/O, FAT mount and file read, removal/error handling."},
-    {"order": 7, "name": "ls/cat/hexdump", "status": "pending", "acceptance": "Real directory listing, file display and bounded hexadecimal output."},
-    {"order": 8, "name": "DDR framebuffer and VGA graphics", "status": "pending", "acceptance": "DMA scanout, FIFO underrun detection, safe frame swap and concurrent CPU access."},
-    {"order": 9, "name": "BMP and WAV", "status": "pending", "acceptance": "Validated format limits, SD streaming, image display and audio playback on board."},
-    {"order": 10, "name": "Custom video and Bad Apple", "status": "pending", "acceptance": "Documented asset format and host converter, bounded buffers, timed playback and dropped-frame accounting."},
-    {"order": 11, "name": "Evaluate I/D cache", "status": "deferred", "acceptance": "Measure stalls first; if implemented, preserve MMIO ordering and DMA coherence."},
-    {"order": 12, "name": "ELF loader", "status": "deferred", "acceptance": "Validate ELF32 RISC-V headers and segment ranges, zero BSS, define process/runtime handoff."}
+    {
+      "order": 1,
+      "name": "Freeze known-good CPU",
+      "status": "verified",
+      "acceptance": "Original RTL unchanged; original full regression passes."
+    },
+    {
+      "order": 2,
+      "name": "RV32M and independent ISA tests",
+      "status": "verified_in_simulation_and_internal_ooc_timing",
+      "acceptance": "All eight operations, edge and random vectors, two PC styles, forwarding, precise trap and IRQ, no duplicated MMIO."
+    },
+    {
+      "order": 3,
+      "name": "DDR2 and DMA",
+      "status": "verified_in_soc_simulation_mig_pin_smoke_routed_timing_and_hardware",
+      "acceptance": "MIG calibration, CPU backpressure, byte enables, DMA bounds and arbitration; board memory sweep and CRC.",
+      "evidence": "ptrocos-ddr2-validation.json"
+    },
+    {
+      "order": 4,
+      "name": "VGA text mode and PS/2 keyboard",
+      "status": "verified_in_simulation_routed_timing_and_board_video_status",
+      "acceptance": "640x480 timing, text cells and cursor, PS/2 parity and scan-code decoding, board typing.",
+      "evidence": "ptrocos-text-validation.json",
+      "pending_acceptance": [
+        "Physical VGA display: monitor not connected",
+        "Physical keyboard input: deferred by user on 2026-10-06"
+      ],
+      "blocks_next_stage": false
+    },
+    {
+      "order": 5,
+      "name": "PtrocOS TTY and shell",
+      "status": "verified_in_simulation_and_routed_timing",
+      "acceptance": "Editable lines, command dispatch, UART and VGA/keyboard TTY, scheduler remains responsive.",
+      "evidence": "ptrocos-shell-validation.json",
+      "pending_acceptance": [
+        "UART shell on board: USB target is present but FPGA is not detected; board power/connection clarification pending",
+        "Physical VGA and keyboard acceptance remains deferred as recorded in stage 4"
+      ],
+      "blocks_next_stage": false
+    },
+    {
+      "order": 6,
+      "name": "SD and FatFs",
+      "status": "verified_in_native_spi_soc_simulation_and_routed_timing",
+      "acceptance": "SD initialization and block I/O, FAT mount and file read, removal/error handling.",
+      "evidence": "ptrocos-storage-validation.json",
+      "pending_acceptance": [
+        "Real SD card initialization, mount and known-file CRC: FPGA not detected; card presence/format clarification pending",
+        "Board SD power/card-detect polarity, electrical timing and card compatibility",
+        "Physical keyboard input remains deferred by user; VGA monitor is not connected"
+      ],
+      "blocks_next_stage": false
+    },
+    {
+      "order": 7,
+      "name": "ls/cat/hexdump",
+      "status": "pending",
+      "acceptance": "Real directory listing, file display and bounded hexadecimal output."
+    },
+    {
+      "order": 8,
+      "name": "DDR framebuffer and VGA graphics",
+      "status": "pending",
+      "acceptance": "DMA scanout, FIFO underrun detection, safe frame swap and concurrent CPU access."
+    },
+    {
+      "order": 9,
+      "name": "BMP and WAV",
+      "status": "pending",
+      "acceptance": "Validated format limits, SD streaming, image display and audio playback on board."
+    },
+    {
+      "order": 10,
+      "name": "Custom video and Bad Apple",
+      "status": "pending",
+      "acceptance": "Documented asset format and host converter, bounded buffers, timed playback and dropped-frame accounting."
+    },
+    {
+      "order": 11,
+      "name": "Evaluate I/D cache",
+      "status": "deferred",
+      "acceptance": "Measure stalls first; if implemented, preserve MMIO ordering and DMA coherence."
+    },
+    {
+      "order": 12,
+      "name": "ELF loader",
+      "status": "deferred",
+      "acceptance": "Validate ELF32 RISC-V headers and segment ranges, zero BSS, define process/runtime handoff."
+    }
   ]
 }

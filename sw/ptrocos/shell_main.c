@@ -8,6 +8,9 @@
 #include "tty.h"
 #include "shell.h"
 #include <string.h>
+#ifdef PTROCOS_STORAGE
+#include "storage/storage_commands.h"
+#endif
 
 struct session {
     struct tty tty;
@@ -130,7 +133,11 @@ static void command(void *context,const char *input)
             while(!s->abort && xTaskGetTickCount()-begin<milliseconds) vTaskDelay(1);
             if(!s->abort) output(s,"sleep done\r\n");
         }
-    } else if(argc!=1) output(s,"unexpected arguments\r\n");
+    }
+#ifdef PTROCOS_STORAGE
+    else if(ptrocos_storage_command(argc,argv,output,s,&s->abort)) { }
+#endif
+    else if(argc!=1) output(s,"unexpected arguments\r\n");
     else if(same(name,"help")) {
         for(unsigned i=0;i<shell_command_count && !s->abort;i++) {
             output(s,shell_commands[i]);output(s,i+1==shell_command_count ? "\r\n" : " ");
@@ -238,14 +245,20 @@ int main(void)
     uint32_t misa;__asm__ volatile("csrr %0,misa":"=r"(misa));
     if(misa!=0x40001100U || PTROCOS_MMIO32(0x4000b00cU)!=0x001e0050U) panic(1);
     ptrocos_text_clear();PTROCOS_MMIO32(0x4000c018U)=3;
+    #ifdef PTROCOS_STORAGE
+    ptrocos_storage_init();
+    const unsigned terminal_stack=1536;
+#else
+    const unsigned terminal_stack=768;
+#endif
     dma_lock=xSemaphoreCreateMutex();configASSERT(dma_lock!=NULL);
     for(unsigned i=0;i<2;i++) {
         sessions[i].index=i;sessions[i].input=xQueueCreate(128,sizeof(int16_t));
         configASSERT(sessions[i].input!=NULL);
     }
     configASSERT(xTaskCreate(input_task,"input",320,NULL,3,NULL)==pdPASS);
-    configASSERT(xTaskCreate(terminal_task,"uart-tty",768,&sessions[0],2,NULL)==pdPASS);
-    configASSERT(xTaskCreate(terminal_task,"vga-tty",768,&sessions[1],2,NULL)==pdPASS);
+    configASSERT(xTaskCreate(terminal_task,"uart-tty",terminal_stack,&sessions[0],2,NULL)==pdPASS);
+    configASSERT(xTaskCreate(terminal_task,"vga-tty",terminal_stack,&sessions[1],2,NULL)==pdPASS);
     configASSERT(xTaskCreate(heartbeat_task,"heartbeat",192,NULL,4,NULL)==pdPASS);
     vTaskStartScheduler();panic(8);return 0;
 }

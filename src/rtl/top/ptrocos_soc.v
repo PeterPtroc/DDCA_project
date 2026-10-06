@@ -16,6 +16,8 @@ module ptrocos_soc #(
     input wire [7:0] capture_in,
     input wire uart_rx,
     input wire pixel_clk, pixel_rst, ps2_clk, ps2_data,
+    input wire sd_miso, sd_cd_n,
+    output wire sd_sck, sd_mosi, sd_cs_n, sd_reset,
     output wire [3:0] vga_red, vga_green, vga_blue,
     output wire vga_hsync, vga_vsync,
     output wire [15:0] led,
@@ -65,6 +67,7 @@ module ptrocos_soc #(
   wire dma_sel = da[31:12] == 20'h4000a;
   wire vga_reg_sel = da[31:12] == 20'h4000b;
   wire keyboard_sel = da[31:12] == 20'h4000c;
+  wire sd_sel = da[31:12] == 20'h4000d;
   wire vga_cell_sel = da[31:14] == 18'h10004;
   wire rom_sel = da[31:16] == 16'h0000;
   wire ram_sel = da[31:16] == 16'h1000;
@@ -74,6 +77,7 @@ module ptrocos_soc #(
   wire [31:0] dma_addr, dma_wdata;
   wire [3:0] dma_wstrb;
   wire [31:0] vga_cell_rdata, vga_reg_rdata, keyboard_rdata;
+  wire [31:0] sd_rdata;
   wire vga_reg_ready;
   wire data_ready = ddr_sel ? cpu_ddr_ready : vga_reg_sel ? vga_reg_ready : 1'b1;
   wire data_error = ddr_sel ? cpu_ddr_error :
@@ -117,7 +121,7 @@ module ptrocos_soc #(
       .EDGE_INITIAL_TIMEOUT_TICKS(EDGE_INITIAL_TIMEOUT_TICKS),
       .LIVE_AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES)
   ) bus (
-      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel), .we(dwe), .addr(da), .wdata(dw),
+      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel && !sd_sel), .we(dwe), .addr(da), .wdata(dw),
       .sw(sw), .btn(btn), .capture_in(capture_in), .uart_rx_i(uart_rx),
       .retire(rv), .stall(es), .fwd_ex(ef),
       .fwd_wb(wf), .flush(fl), .branch(br), .branch_taken(bt), .crc(crc),
@@ -140,6 +144,11 @@ module ptrocos_soc #(
       .clk(clk),.rst(rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
       .valid(dv && keyboard_sel),.we(dwe),.addr(da),.wdata(dw),.wstrb(dstrb),
       .rdata(keyboard_rdata),.irq()
+  );
+  sd_spi sd (
+      .clk(clk),.rst(rst),.valid(dv && sd_sel),.we(dwe),.addr(da),
+      .wdata(dw),.wstrb(dstrb),.rdata(sd_rdata),.sd_miso(sd_miso),.sd_cd_n(sd_cd_n),
+      .sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset)
   );
   dma_copy dma (
       .clk(clk), .rst(rst), .mmio_valid(dv && dma_sel), .mmio_we(dwe),
@@ -177,7 +186,7 @@ module ptrocos_soc #(
         read_region <= 2'd1;
       else if (clint_sel || da[31:28] == 4'h4) begin
         read_region <= 2'd2;
-        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : mmio_r;
+        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : sd_sel ? sd_rdata : mmio_r;
       end else
         read_region <= 2'd0;
     end

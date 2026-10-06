@@ -5,3 +5,9 @@ size_t strlen(const char *text)
     while(text[length]) ++length;
     return length;
 }
+char *strchr(const char *text,int value)
+{
+    unsigned char ch=(unsigned char)value;
+    do {if((unsigned char)*text==ch) return (char *)text;} while(*text++);
+    return NULL;
+}

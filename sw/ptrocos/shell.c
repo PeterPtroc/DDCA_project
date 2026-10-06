@@ -1,6 +1,10 @@
 #include "shell.h"
 #include <stddef.h>
-const char *const shell_commands[]={"help","echo","clear","uname","uptime","mem","video","kbd","tasks","sleep","ddrtest"};
+const char *const shell_commands[]={"help","echo","clear","uname","uptime","mem","video","kbd","tasks","sleep","ddrtest"
+#ifdef PTROCOS_STORAGE
+    ,"mount","umount","sdinfo","fscheck"
+#endif
+};
 const unsigned shell_command_count=sizeof(shell_commands)/sizeof(shell_commands[0]);
 int shell_parse(char *line,char **argv,unsigned *argc)
 {

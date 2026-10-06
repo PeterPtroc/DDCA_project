@@ -1,5 +1,10 @@
 set script_dir [file dirname [file normalize [info script]]]
-set out [file normalize [get_property DIRECTORY [current_project]]]
+if {[info exists ptrocos_output_root]} {
+    # open_checkpoint creates an in-memory project rooted at the caller's cwd.
+    set out [file normalize $ptrocos_output_root]
+} else {
+    set out [file normalize [get_property DIRECTORY [current_project]]]
+}
 # Implementation hooks use an in-memory project rooted inside ptrocos.runs.
 if {[file tail [file dirname $out]] eq "ptrocos.runs"} {
     set out [file dirname [file dirname $out]]
@@ -29,6 +34,7 @@ foreach pattern {
     {.*text_display/register_cdc/response_data_reg(\[[0-9]+\])?$}
     {.*text_display/register_cdc/source_rdata_reg(\[[0-9]+\])?$}
     {.*keyboard/(clock|data)_sync_reg\[0\]$}
+    {.*soc/sd/(miso|detect)_sync_reg\[0\]$}
 } {
     if {![llength [get_cells -hier -quiet -regexp $pattern]]} {
         error "Missing mailbox constraint endpoint: $pattern"

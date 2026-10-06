@@ -14,6 +14,7 @@ module tb_ptrocos_mig;
   string line="";
   integer passes=0,crc_lines=0;
   ptrocos_nexys_a7_top #(.UART_DIVIDER(16)) dut (
+      .sd_miso(1'b1),.sd_cd_n(1'b1),
       .clk100(clk),.reset_n(reset_n),.sw(16'd0),.btn(5'd0),.uart_rx(1'b1),.jb1(1'b0),
       .ps2_clk(1'b1),.ps2_data(1'b1),
       .led(),.uart_tx(uart_tx),.pmod_ja(),.seg_an(),.seg(),.seg_dp(),

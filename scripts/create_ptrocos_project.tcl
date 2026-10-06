@@ -25,19 +25,23 @@ set_property USED_IN_SYNTHESIS false [get_files ptrocos_cdc.xdc]
 add_files -fileset constrs_1 -norecurse [file join $root constraints ptrocos_video.xdc]
 set_property PROCESSING_ORDER LATE [get_files ptrocos_video.xdc]
 set_property USED_IN_SYNTHESIS false [get_files ptrocos_video.xdc]
+add_files -fileset constrs_1 -norecurse [file join $root constraints ptrocos_sd.xdc]
+set_property PROCESSING_ORDER LATE [get_files ptrocos_sd.xdc]
+set_property USED_IN_SYNTHESIS false [get_files ptrocos_sd.xdc]
 set_property top ptrocos_nexys_a7_top [current_fileset]
 set_property generic [list "IMEM_HEX=$firmware" "CPU_PC_NEXT_STYLE=0"] [current_fileset]
 create_ip -name mig_7series -vendor xilinx.com -library ip -version 4.2 -module_name ptrocos_ddr2_mig
 source [file join $script_dir configure_ptrocos_mig.tcl]
 # Global synthesis sees the actual feedback reference clock from the MIG MMCM.
 set_property GENERATE_SYNTH_CHECKPOINT false [get_files ptrocos_ddr2_mig.xci]
-add_files -fileset utils_1 -norecurse [list [file join $script_dir finalize_ptrocos_timing.tcl] [file join $script_dir check_routed_timing.tcl]]
+add_files -fileset utils_1 -norecurse [list [file join $script_dir finalize_ptrocos_timing.tcl] [file join $script_dir check_routed_timing.tcl] [file join $script_dir optimize_ptrocos_rom.tcl]]
 foreach run [get_runs {synth_1 impl_1}] {
     set_property AUTO_INCREMENTAL_CHECKPOINT 0 $run
     set_property INCREMENTAL_CHECKPOINT {} $run
 }
 set impl [get_runs impl_1]
 set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE ExtraPostPlacementOpt $impl
+set_property STEPS.PLACE_DESIGN.TCL.POST [file join $script_dir optimize_ptrocos_rom.tcl] $impl
 set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED true $impl
 set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore $impl
 set_property STEPS.ROUTE_DESIGN.ARGS.DIRECTIVE AggressiveExplore $impl
