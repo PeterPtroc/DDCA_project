@@ -131,7 +131,7 @@
     {
       "order": 12,
       "name": "ELF loader",
-      "status": "deferred",
+      "status": "implementation_in_progress_final_soc_video_routed_and_board_pending",
       "acceptance": "Validate ELF32 RISC-V headers and segment ranges, zero BSS, define process/runtime handoff."
     }
   ]

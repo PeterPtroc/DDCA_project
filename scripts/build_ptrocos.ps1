@@ -1,4 +1,4 @@
-param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell','storage','graphics','media','video','perf')][string]$Firmware='ddr2')
+param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell','storage','graphics','media','video','elf','perf')][string]$Firmware='ddr2')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $Root=Split-Path -Parent $PSScriptRoot
@@ -26,7 +26,7 @@ $Flags=@('-march=rv32im_zicsr','-mabi=ilp32','-mcmodel=medany','-msmall-data-lim
 $Objects=@()
 $Sources=@('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/freertos/runtime.c','sw/ptrocos/startup.S')
 if($Firmware -eq 'text') {$Sources+=@('sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c')}
-if($Firmware -in @('shell','storage','graphics','media','video')) {
+if($Firmware -in @('shell','storage','graphics','media','video','elf')) {
     $Flags+=@('-Isw/ptrocos/os','-Isw/freertos/kernel/include',
         '-Isw/freertos/kernel/portable/GCC/RISC-V',
         '-Isw/freertos/kernel/portable/GCC/RISC-V/chip_specific_extensions/RISCV_MTIME_CLINT_no_extensions')
@@ -38,26 +38,31 @@ if($Firmware -in @('shell','storage','graphics','media','video')) {
         'sw/freertos/kernel/portable/GCC/RISC-V/port.c',
         'sw/freertos/kernel/portable/GCC/RISC-V/portASM.S')
 }
-if($Firmware -in @('storage','graphics','media','video')) {
+if($Firmware -in @('storage','graphics','media','video','elf')) {
     $Flags+=@('-DPTROCOS_STORAGE','-Isw/ptrocos/storage','-Ithird_party/fatfs')
     $Sources+=@('sw/ptrocos/storage/sd_card.c','sw/ptrocos/storage/storage_disk.c',
         'sw/ptrocos/storage/storage_hw.c','sw/ptrocos/storage/storage_commands.c',
         'sw/ptrocos/storage/ff_port.c','third_party/fatfs/ff.c','third_party/fatfs/ffunicode.c')
 }
-if($Firmware -in @('graphics','media','video')) {
+if($Firmware -in @('graphics','media','video','elf')) {
     $Flags+=@('-DPTROCOS_GRAPHICS')
     $Sources+=@('sw/ptrocos/graphics.c')
 }
-if($Firmware -in @('media','video')) {
+if($Firmware -in @('media','video','elf')) {
     $Flags+=@('-DPTROCOS_MEDIA')
     $Sources+=@('sw/ptrocos/media/decode.c','sw/ptrocos/media/audio.c','sw/ptrocos/media/media_commands.c')
     # Keep the frozen ROM capacity. Size optimization applies only to this image.
     $Flags=$Flags | Where-Object {$_ -ne '-O2'}
     $Flags+=@('-Os')
 }
-if($Firmware -eq 'video') {
+if($Firmware -in @('video','elf')) {
     $Flags+=@('-DPTROCOS_VIDEO')
     $Sources+=@('sw/ptrocos/media/video_decode.c','sw/ptrocos/media/video_player.c')
+}
+if($Firmware -eq 'elf') {
+    & "$PSScriptRoot/build_ptrocos_apps.ps1" -ToolchainPrefix $ToolchainPrefix
+    $Flags+=@('-DPTROCOS_ELF','-Ibuild/ptrocos_elf')
+    $Sources+=@('sw/ptrocos/elf/elf_decode.c','sw/ptrocos/elf/elf_runtime.c','sw/ptrocos/elf/app_call.S')
 }
 foreach($source in $Sources) {
     $object=Join-Path $Out ((($source -replace '[/\\]','_') -replace '\.[cS]$','.o'))
@@ -72,4 +77,5 @@ Invoke-Checked $Python @('sw/tools/bin2hex.py',"$Out/ptrocos_$Firmware.bin","bui
 & $Objdump -d -S $Elf | Set-Content -LiteralPath "$Out/ptrocos_$Firmware.lst" -Encoding ascii
 if($LASTEXITCODE -ne 0) {throw 'objdump failed'}
 Invoke-Checked $Size @($Elf)
+if($Firmware -eq 'elf') {Invoke-Checked $Python @('sw/tools/elf_call_reference.py','--toolchain-prefix',$ToolchainPrefix)}
 Write-Host "PTROCOS BUILD PASS: build/hex/ptrocos_$Firmware.hex"

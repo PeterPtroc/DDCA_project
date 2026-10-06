@@ -3,6 +3,9 @@
 const char *const shell_commands[]={"help","echo","clear","uname","uptime","mem","video","kbd","tasks","sleep","ddrtest"
 #ifdef PTROCOS_STORAGE
     ,"mount","umount","sdinfo","fscheck","ls","cat","hexdump"
+#ifdef PTROCOS_ELF
+    ,"elf","run"
+#endif
 #endif
 #ifdef PTROCOS_GRAPHICS
     ,"gfx"

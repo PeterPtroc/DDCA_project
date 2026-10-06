@@ -114,10 +114,31 @@ if {[llength [get_cells -hier -quiet -regexp {.*graphics/blank_sync_reg\[0\]$}]]
 if {[llength [get_cells -hier -quiet -regexp {.*soc/sd/(miso|detect)_sync_reg\[0\]$}]]!=2} {
     error "Missing SD input synchronizers"
 }
+if {[llength [get_cells -hier -quiet -regexp {.*soc/app_memory/.*}]]} {
+    set app_brams [get_cells -hier -filter {NAME =~ */app_memory/* && REF_NAME == RAMB36E1}]
+    if {[llength $app_brams]!=4} {error "ELF app memory must use exactly four RAMB36E1"}
+    foreach bram $app_brams {
+        foreach pin {CLKARDCLK CLKBWRCLK} {
+            if {[get_property IS_${pin}_INVERTED $bram] ni {1 1'b1 true}} {error "ELF app RAM $bram/$pin must use falling edge"}
+            set clocks [get_clocks -of_objects [get_pins $bram/$pin]]
+            if {[llength $clocks]!=1 || abs([get_property PERIOD $clocks]-10.000)>0.001} {error "ELF app RAM clock must remain related 100MHz CPU clock"}
+        }
+    }
+    # These are related opposite-edge paths, not asynchronous domains. Keep
+    # their normal half-cycle setup/hold analysis; do not add mailbox cuts.
+    set app_cells [get_cells -hier -quiet -regexp {.*soc/app_memory/register_cdc/.*_reg(\[[0-9]+\])?$}]
+    set app_paths [get_timing_paths -quiet -to $app_cells -delay_type max -max_paths 1000]
+    if {![llength $app_paths]} {error "Missing ELF mailbox timing paths"}
+    foreach path $app_paths {
+        if {[get_property EXCEPTION $path] ne ""} {error "ELF related mailbox path must remain timed without exceptions: [get_property EXCEPTION $path]"}
+    }
+    report_timing -to $app_cells -delay_type min_max -max_paths 20 -file [file join $reports elf_app_memory_timing.rpt]
+    puts "PTROCOS ELF MEMORY TIMING PASS: RAMB36=4 falling-edge ports, related 100MHz mailbox [llength $app_paths] timed endpoints"
+}
 set preliminary [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $preliminary] && [get_property SLACK $preliminary]>=-0.500 &&
     [get_property SLACK $preliminary]<0.100} {
-    if {[file tail $out] in {ptrocos_media_vivado ptrocos_video_vivado}} {
+    if {[file tail $out] in {ptrocos_media_vivado ptrocos_video_vivado ptrocos_elf_vivado}} {
         # Physical optimization otherwise ignores positive slack below our
         # acceptance margin. Optimize against a tighter target, then restore
         # the normal clock uncertainty before reporting or emitting the bit.

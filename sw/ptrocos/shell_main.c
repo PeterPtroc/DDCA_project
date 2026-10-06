@@ -8,6 +8,9 @@
 #include "tty.h"
 #include "shell.h"
 #include <string.h>
+#ifdef PTROCOS_ELF
+#include "elf/elf_runtime.h"
+#endif
 #ifdef PTROCOS_MEDIA
 #include "media/audio.h"
 #endif
@@ -45,7 +48,13 @@ static void panic(uint32_t code)
 void vAssertCalled(const char *file,int line) {(void)file;panic(0x100U|(unsigned)line);}
 void vApplicationMallocFailedHook(void) {panic(2);}
 void vApplicationStackOverflowHook(TaskHandle_t task,char *name) {(void)task;(void)name;panic(3);}
-void freertos_risc_v_application_exception_handler(uint32_t cause,uint32_t pc) {(void)pc;panic(0x200U|cause);}
+void freertos_risc_v_application_exception_handler(uint32_t cause,uint32_t pc)
+{
+#ifdef PTROCOS_ELF
+    if(ptrocos_elf_exception(cause,pc)) return;
+#endif
+    (void)pc;panic(0x200U|cause);
+}
 void freertos_risc_v_application_interrupt_handler(uint32_t cause,uint32_t pc) {(void)pc;panic(0x300U|cause);}
 void vApplicationIdleHook(void)
 {
@@ -152,6 +161,9 @@ static void command(void *context,const char *input)
     }
 #ifdef PTROCOS_STORAGE
     else if(ptrocos_storage_command(argc,argv,output,output_byte,s,&s->abort)) { }
+#endif
+#ifdef PTROCOS_ELF
+    else if(ptrocos_elf_command(argc,argv,output,s,&s->abort)) { }
 #endif
 #ifdef PTROCOS_GRAPHICS
     else if(ptrocos_graphics_command(argc,argv,output,s,&s->abort)) { }
@@ -278,6 +290,9 @@ int main(void)
 #endif
     #ifdef PTROCOS_STORAGE
     ptrocos_storage_init();
+#ifdef PTROCOS_ELF
+    ptrocos_elf_init();
+#endif
     const unsigned terminal_stack=1536;
 #else
     const unsigned terminal_stack=768;

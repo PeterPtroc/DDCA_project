@@ -7,6 +7,9 @@
 #include "semphr.h"
 #include "ff.h"
 #include <string.h>
+#ifdef PTROCOS_ELF
+#include "elf/elf_runtime.h"
+#endif
 #ifdef PTROCOS_MEDIA
 #include "media/media_commands.h"
 #endif
@@ -43,6 +46,47 @@ static void error(struct output *o,FRESULT result)
     put(o,sd_result_name(ptrocos_storage_disk_card()->last_error));put(o,"\r\n");
     if(!ptrocos_storage_disk_card()->initialized) mounted=0;
 }
+#ifdef PTROCOS_ELF
+struct elf_stream {FIL file;FRESULT error;volatile uint32_t *cancel;};
+static int elf_cancelled(void *context) {struct elf_stream *s=context;return *s->cancel!=0;}
+static int elf_read(void *context,uint32_t offset,void *data,unsigned bytes)
+{
+    struct elf_stream *s=context;UINT got=0;
+    if(f_tell(&s->file)!=offset) s->error=f_lseek(&s->file,offset);
+    if(s->error==FR_OK) s->error=f_read(&s->file,data,bytes,&got);
+    if(*s->cancel) return ELF_CANCEL;
+    if(s->error!=FR_OK) return ELF_IO;
+    return got==bytes ? ELF_OK : ELF_FORMAT;
+}
+int ptrocos_storage_elf(const char *path,struct elf_image *image,void (*write)(void *,const char *),void *context,volatile uint32_t *cancel)
+{
+    memset(image,0,sizeof(*image));
+    while(xSemaphoreTake(lock,1)!=pdTRUE) if(*cancel) return ELF_CANCEL;
+    int result=ELF_IO;struct output out={write,NULL,context,cancel};
+    if(*cancel) result=ELF_CANCEL;
+    else if(!mounted) put(&out,"mount the SD card first\r\n");
+    else {
+        struct elf_stream stream;stream.cancel=cancel;
+        ptrocos_sd_cancel_source(cancel);
+        stream.error=f_open(&stream.file,path,FA_READ);
+        if(stream.error==FR_OK) {
+            struct elf_source source={(uint32_t)f_size(&stream.file),elf_read,elf_cancelled,&stream};
+            struct elf_sink sink={ptrocos_elf_memory_write,ptrocos_elf_progress,NULL};
+            result=ptrocos_elf_load(&source,&sink,image);
+            FRESULT closed=f_close(&stream.file);
+            if(stream.error==FR_OK) stream.error=closed;
+        }
+        if(stream.error!=FR_OK) {image->loaded=0;result=*cancel ? ELF_CANCEL : ELF_IO;}
+        if(result!=ELF_OK && result!=ELF_CANCEL) {
+            put(&out,"ELF load error=");number(&out,result);put(&out,"\r\n");
+            if(stream.error!=FR_OK) error(&out,stream.error);
+        }
+        if(!ptrocos_storage_disk_card()->initialized) mounted=0;
+        ptrocos_sd_cancel_source(NULL);
+    }
+    configASSERT(xSemaphoreGive(lock)==pdTRUE);return result;
+}
+#endif
 void ptrocos_storage_init(void)
 {
     struct sd_transport bus;ptrocos_sd_transport(&bus);ptrocos_storage_disk_setup(&bus);

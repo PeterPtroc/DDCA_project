@@ -10,6 +10,8 @@
 
 视频阶段之后的测量、地址重放与缓存取舍见 [I/D cache 评估](ptrocos-cache-evaluation.md)。
 
+ELF 的地址窗口、受信任应用 ABI、流式加载与异常恢复见 [ELF loader](ptrocos-elf.md)。
+
 1. 保留正确 CPU 基线。
 2. RV32M 与独立 ISA 测试。
 3. DDR2 与 DMA。

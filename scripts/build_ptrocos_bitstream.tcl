@@ -4,7 +4,7 @@ cd $root
 set ptrocos_firmware ddr2
 set reuse false
 foreach arg $argv {
-    if {$arg eq "reuse"} {set reuse true} elseif {$arg in {ddr2 text shell storage graphics media video}} {set ptrocos_firmware $arg} else {error "Unknown argument: $arg"}
+    if {$arg eq "reuse"} {set reuse true} elseif {$arg in {ddr2 text shell storage graphics media video elf}} {set ptrocos_firmware $arg} else {error "Unknown argument: $arg"}
 }
 if {$ptrocos_firmware eq "ddr2"} {set project_folder ptrocos_vivado} else {set project_folder ptrocos_${ptrocos_firmware}_vivado}
 if {$reuse} {
@@ -30,7 +30,8 @@ wait_on_run impl_1
 if {[get_property STATUS [get_runs impl_1]] ne "write_bitstream Complete!"} {
     error "PtrocOS implementation failed: [get_property STATUS [get_runs impl_1]]"
 }
-set bit [file join $root build $project_folder ptrocos.runs impl_1 ptrocos_nexys_a7_top.bit]
+set board_top [expr {$ptrocos_firmware eq "elf" ? "ptrocos_elf_nexys_a7_top" : "ptrocos_nexys_a7_top"}]
+set bit [file join $root build $project_folder ptrocos.runs impl_1 ${board_top}.bit]
 if {![file isfile $bit]} { error "Missing PtrocOS bitstream $bit" }
 file copy -force $bit [file join $root build $project_folder ptrocos_${ptrocos_firmware}.bit]
 puts "PTROCOS BITSTREAM PASS: [file join $root build $project_folder ptrocos_${ptrocos_firmware}.bit]"

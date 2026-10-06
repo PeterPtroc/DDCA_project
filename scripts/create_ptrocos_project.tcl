@@ -12,12 +12,15 @@ if {$ptrocos_firmware eq "ddr2"} {set project_folder ptrocos_vivado} else {set p
 set out [file join $root build $project_folder]
 file mkdir $out
 create_project ptrocos $out -part xc7a100tcsg324-1 -force
-set source_file [open [file join $script_dir ptrocos_sources.txt] r]
+set source_list ptrocos_sources.txt
+set board_top ptrocos_nexys_a7_top
+if {$ptrocos_firmware eq "elf"} {set source_list ptrocos_elf_sources.txt; set board_top ptrocos_elf_nexys_a7_top}
+set source_file [open [file join $script_dir $source_list] r]
 foreach relative [split [string trim [read $source_file]] \n] {
     add_files -norecurse [file join $root [string trim $relative]]
 }
 close $source_file
-add_files -norecurse [file join $root src rtl top ptrocos_nexys_a7_top.v]
+add_files -norecurse [file join $root src rtl top ${board_top}.v]
 add_files -fileset constrs_1 -norecurse [file join $root constraints nexys_a7_100t.xdc]
 add_files -fileset constrs_1 -norecurse [file join $root constraints ptrocos_cdc.xdc]
 set_property PROCESSING_ORDER LATE [get_files ptrocos_cdc.xdc]
@@ -34,7 +37,7 @@ set_property USED_IN_SYNTHESIS false [get_files ptrocos_graphics.xdc]
 add_files -fileset constrs_1 -norecurse [file join $root constraints ptrocos_audio.xdc]
 set_property PROCESSING_ORDER LATE [get_files ptrocos_audio.xdc]
 set_property USED_IN_SYNTHESIS false [get_files ptrocos_audio.xdc]
-set_property top ptrocos_nexys_a7_top [current_fileset]
+set_property top $board_top [current_fileset]
 set_property generic [list "IMEM_HEX=$firmware" "CPU_PC_NEXT_STYLE=0"] [current_fileset]
 create_ip -name mig_7series -vendor xilinx.com -library ip -version 4.2 -module_name ptrocos_ddr2_mig
 source [file join $script_dir configure_ptrocos_mig.tcl]
