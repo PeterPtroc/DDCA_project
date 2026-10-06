@@ -1,4 +1,4 @@
-param([string]$ToolchainPrefix,[ValidateSet('ddr2','text')][string]$Firmware='ddr2')
+param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell')][string]$Firmware='ddr2')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $Root=Split-Path -Parent $PSScriptRoot
@@ -26,6 +26,18 @@ $Flags=@('-march=rv32im_zicsr','-mabi=ilp32','-mcmodel=medany','-msmall-data-lim
 $Objects=@()
 $Sources=@('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/freertos/runtime.c','sw/ptrocos/startup.S')
 if($Firmware -eq 'text') {$Sources+=@('sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c')}
+if($Firmware -eq 'shell') {
+    $Flags+=@('-Isw/ptrocos/os','-Isw/freertos/kernel/include',
+        '-Isw/freertos/kernel/portable/GCC/RISC-V',
+        '-Isw/freertos/kernel/portable/GCC/RISC-V/chip_specific_extensions/RISCV_MTIME_CLINT_no_extensions')
+    $Sources=@('sw/ptrocos/board.c','sw/ptrocos/shell_main.c','sw/ptrocos/tty.c',
+        'sw/ptrocos/shell.c','sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c','sw/ptrocos/string_runtime.c',
+        'sw/freertos/runtime.c','sw/freertos/startup.S',
+        'sw/freertos/kernel/tasks.c','sw/freertos/kernel/queue.c','sw/freertos/kernel/list.c',
+        'sw/freertos/kernel/portable/MemMang/heap_4.c',
+        'sw/freertos/kernel/portable/GCC/RISC-V/port.c',
+        'sw/freertos/kernel/portable/GCC/RISC-V/portASM.S')
+}
 foreach($source in $Sources) {
     $object=Join-Path $Out ((($source -replace '[/\\]','_') -replace '\.[cS]$','.o'))
     Invoke-Checked $Gcc ($Flags+@('-c',$source,'-o',$object))

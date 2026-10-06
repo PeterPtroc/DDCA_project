@@ -36,3 +36,15 @@ void ptrocos_text_puts(const char *text)
 {
     while(*text) ptrocos_text_putc(*text++);
 }
+void ptrocos_text_redraw(const char *prompt,const char *line,unsigned length,unsigned caret)
+{
+    unsigned prefix=0;while(prompt[prefix] && prefix<80) ++prefix;
+    // TTY's 63-byte input plus its seven-byte prompt fits on one 80-cell row.
+    for(unsigned i=0;i<80;i++) {
+        unsigned ch=i<prefix ? (unsigned char)prompt[i] :
+                    i-prefix<length ? (unsigned char)line[i-prefix] : ' ';
+        cells[row*80U+i]=0x0700U|ch;
+    }
+    column=prefix+caret;if(column>=80) column=79;
+    cursor();
+}

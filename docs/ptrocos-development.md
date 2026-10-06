@@ -19,7 +19,7 @@
 11. 根据实际性能测量结果评估 I/D cache。
 12. 后续实现 ELF loader。
 
-第 4 阶段的实现、MMIO 与验收范围见 [VGA 文本与 PS/2 键盘](ptrocos-text.md)。键盘实物验收按用户要求延后，VGA 实屏验收等待显示器连接；继续开发 TTY 与 shell。
+第 4 阶段的实现、MMIO 与验收范围见 [VGA 文本与 PS/2 键盘](ptrocos-text.md)。键盘实物验收按用户要求延后，VGA 实屏验收等待显示器连接。第 5 阶段的独立 FreeRTOS 配置、双终端和命令见 [PtrocOS 双 TTY 与 shell](ptrocos-shell.md)。
 
 ## RV32M 实现
 
@@ -80,7 +80,7 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 
 ## 完整 SoC 与板级验证
 
-实验顶层为 `ptrocos_nexys_a7_top`，使用独立 `build/ptrocos_vivado/` 工程。原示波器顶层和工程入口保持不变。软件仍在 BRAM 中启动，DDR 暂用作诊断数据区；TTY、shell 和 RTOS 集成在下一阶段进行。
+实验顶层为 `ptrocos_nexys_a7_top`，DDR2 诊断使用独立 `build/ptrocos_vivado/` 工程；TTY/shell 使用 `build/ptrocos_shell_vivado/` 和独立应用，复用未修改的 FreeRTOS 内核。原示波器顶层和工程入口保持不变。软件仍在 BRAM 中启动，DDR 暂用作诊断数据区。
 
 实验 SoC 对 CLINT 的定时比较输出寄存一级，避免 64 位比较、中断判断和乘除单元复位串成同一个时序路径。MTIP 相对比较结果延迟一个 CPU 周期；原 CLINT 模块保持不变。完整 SoC 回归与上板诊断验证这个时序接口。
 
