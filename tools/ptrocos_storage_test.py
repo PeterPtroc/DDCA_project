@@ -20,12 +20,14 @@ def main():
     parser.add_argument('--file',help='Existing card path; no writes or formatting')
     parser.add_argument('--expected',type=Path,help='Local original for independent byte count and CRC')
     parser.add_argument('--repeat',type=int,default=3)
+    parser.add_argument('--files',action='store_true',help='Also verify ls, raw binary cat and bounded hexdump')
     parser.add_argument('--output',type=Path,default=Path('build/ptrocos_storage_hardware'))
     args=parser.parse_args()
     if bool(args.file)!=bool(args.expected): parser.error('--file and --expected must be supplied together')
     if args.repeat<1: parser.error('--repeat must be positive')
-    if args.file and (len(args.file.encode('utf-8'))>45 or any(c in args.file for c in '\r\n\0\'\\')):
-        parser.error('Path must fit a quoted shell argument and exclude quotes/backslash/control characters')
+    if args.files and not args.file: parser.error('--files requires --file and --expected')
+    if args.file and (len(args.file)>45 or any(ord(c)<32 or ord(c)>126 or c in "'\\" for c in args.file)):
+        parser.error('Path must fit the ASCII TTY line and exclude quotes/backslash/control characters')
     args.output.mkdir(parents=True,exist_ok=True)
     expected=args.expected.read_bytes() if args.expected else None
     record={'started_utc':datetime.now(timezone.utc).isoformat(),'port':args.port,
@@ -46,10 +48,25 @@ def main():
             def command(text,wanted,timeout=20):
                 response=exchange(text.encode('utf-8')+b'\n',wanted,timeout)
                 record['checks'].append(text);print(f'PASS {text}',flush=True);return response
+            def raw_cat(text):
+                for byte in text.encode('ascii')+b'\n':
+                    port.write(bytes([byte]));time.sleep(.003)
+                received=bytearray();deadline=time.monotonic()+max(30,len(expected)*10/115200+20)
+                body_start=None;total=None
+                while time.monotonic()<deadline:
+                    part=port.read(max(1,port.in_waiting));log.write(part);log.flush();received.extend(part)
+                    if body_start is None and b'\r\n' in received:
+                        body_start=received.index(b'\r\n')+2;total=body_start+len(expected)+len(prompt)
+                    if total is not None and len(received)>=total:
+                        if len(received)!=total or received[body_start:body_start+len(expected)]!=expected or received[-len(prompt):]!=prompt:
+                            raise AssertionError('Raw cat bytes/prompt mismatch')
+                        record['checks'].append(text);print(f'PASS binary {text}',flush=True);return
+                raise TimeoutError('Raw cat did not return the complete file and prompt')
             port.reset_input_buffer();exchange(b'\x03',b'^C\r\n')
             command('uname',b'PtrocOS RV32IM')
             info=command('help',b'fscheck')
             if b'mount umount sdinfo fscheck' not in info: raise AssertionError('Storage firmware required')
+            if args.files and b'fscheck ls cat hexdump' not in info: raise AssertionError('File command firmware required')
             mounted=command('mount',b'FAT mounted type=')
             match=re.search(rb'FAT mounted type=(\d+) sectors=(\d+)',mounted)
             if not match or int(match[1]) not in (1,2,3) or int(match[2])<64: raise AssertionError('Invalid FAT/card geometry')
@@ -62,6 +79,21 @@ def main():
                 command('umount',b'FAT unmounted\r\n');command('mount',b'FAT mounted type=')
                 command(f"fscheck '{args.file}'",wanted,120)
                 record.update(file_verified=True,file=args.file,byte_count=len(expected),crc16=f'{crc16(expected):04x}')
+                if args.files:
+                    listed=command(f"ls '{args.file}'",f'f {len(expected)} '.encode())
+                    command('ls',b'\r\n')
+                    raw_cat(f"cat '{args.file}'")
+                    rows=[]
+                    for pos in range(0,min(256,len(expected)),16):
+                        row=expected[pos:min(pos+16,256)]
+                        left=' '.join(f'{byte:02x}' for byte in row[:8]).ljust(23)
+                        right=' '.join(f'{byte:02x}' for byte in row[8:]).ljust(23)
+                        ascii_text=''.join(chr(byte) if 32<=byte<127 else '.' for byte in row).ljust(16)
+                        rows.append(f'{pos:08x}  {left}  {right}  |{ascii_text}|\r\n')
+                    dumped=command(f"hexdump '{args.file}'",b'\r\n')
+                    body=dumped.split(b'\r\n',1)[1][:-len(prompt)]
+                    if body!=''.join(rows).encode('ascii'): raise AssertionError('Hexdump rows mismatch')
+                    record.update(file_commands_verified=True,raw_cat_verified=True,hexdump_bytes=min(256,len(expected)))
             memory=command('mem',b' bram=65536 ddr=134217728\r\n')
             match=re.search(rb'heap_free=(\d+) heap_min=(\d+)',memory)
             if not match or min(map(int,match.groups()))<4096: raise AssertionError('Insufficient heap')

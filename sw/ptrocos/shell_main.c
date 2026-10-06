@@ -57,6 +57,13 @@ static void output(void *context,const char *text)
     struct session *s=context;
     while(*text && !(s->active && s->abort)) putc_session(s,*text++);
 }
+#ifdef PTROCOS_STORAGE
+static void output_byte(void *context,uint8_t value)
+{
+    struct session *s=context;
+    if(!(s->active && s->abort)) putc_session(s,(char)value);
+}
+#endif
 static void decimal(struct session *s,uint32_t number)
 {
     char digits[11];unsigned count=0;
@@ -135,7 +142,7 @@ static void command(void *context,const char *input)
         }
     }
 #ifdef PTROCOS_STORAGE
-    else if(ptrocos_storage_command(argc,argv,output,s,&s->abort)) { }
+    else if(ptrocos_storage_command(argc,argv,output,output_byte,s,&s->abort)) { }
 #endif
     else if(argc!=1) output(s,"unexpected arguments\r\n");
     else if(same(name,"help")) {

@@ -23,6 +23,8 @@
 
 第 6 阶段加入 SD SPI、SDSC/SDHC 驱动和带官方补丁的 FatFs，使用独立 `storage` 固件；接口、挂载与 CRC 命令、测试范围和实卡验收入口见 [SD 与 FatFs](ptrocos-storage.md)。物理键盘延期不阻塞存储与文件命令开发。
 
+第 7 阶段在同一固件加入 `ls`、原始字节 `cat` 与可指定偏移/长度的 `hexdump`，命令、取消语义、原生与完整 SoC 测试见 [文件命令](ptrocos-files.md)。
+
 ## RV32M 实现
 
 `rv32im_core` 从基线复制而来，通过 `rv32im_decoder` 扩展原译码器；原 `decoder` 文件没有修改。`misa` 返回 `0x40001100`。`rv32m_unit` 实现 `MUL/MULH/MULHSU/MULHU/DIV/DIVU/REM/REMU`，普通运算使用 32 次迭代，除零提前完成。RTL 中没有组合乘法或除法运算符。

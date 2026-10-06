@@ -2,6 +2,7 @@
 #include "storage_hw.h"
 #include "storage_disk.h"
 #include "board.h"
+#include "shell.h"
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "ff.h"
@@ -11,6 +12,7 @@ static FATFS filesystem;
 static unsigned mounted;
 struct output {
     void (*write)(void *,const char *);
+    void (*write_byte)(void *,uint8_t);
     void *context;
     volatile uint32_t *cancel;
 };
@@ -71,27 +73,116 @@ static void check_file(struct output *o,const char *path)
         else {put(o,"FILE PASS bytes=");number(o,total);put(o," crc=");hex(o,crc);put(o,"\r\n");}
     }
 }
-int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const char *),
-    void *context,volatile uint32_t *cancel)
+static void file_info(struct output *o,const FILINFO *info)
 {
+    put(o,info->fattrib&AM_DIR ? "d " : "f ");number(o,(uint32_t)info->fsize);put(o," ");
+    // Names remain UTF-8. Escape terminal controls without changing path parsing.
+    static const char digits[]="0123456789abcdef";
+    for(const uint8_t *p=(const uint8_t *)info->fname;*p && !*o->cancel;p++) {
+        if(*p<32 || *p==127) {
+            char escaped[]={ '\\','x',digits[*p>>4],digits[*p&15],0 };put(o,escaped);
+        } else o->write_byte(o->context,*p);
+    }
+    put(o,"\r\n");
+}
+static void list(struct output *o,const char *path)
+{
+    if(!mounted) {put(o,"mount the SD card first\r\n");return;}
+    FILINFO info;DIR directory;FRESULT result=f_opendir(&directory,path);
+    if(result==FR_NO_PATH || result==FR_NO_FILE) {
+        result=f_stat(path,&info);
+        if(result!=FR_OK) {error(o,result);return;}
+        if(!(info.fattrib&AM_DIR)) {file_info(o,&info);return;}
+        result=f_opendir(&directory,path);
+    }
+    if(result!=FR_OK) {error(o,result);return;}
+    while(!*o->cancel) {
+        result=f_readdir(&directory,&info);
+        if(result!=FR_OK || !info.fname[0]) break;
+        file_info(o,&info);taskYIELD();
+    }
+    FRESULT closed=f_closedir(&directory);
+    if(result==FR_OK) result=closed;
+    if(!*o->cancel && result!=FR_OK) error(o,result);
+}
+static void cat(struct output *o,const char *path)
+{
+    if(!mounted) {put(o,"mount the SD card first\r\n");return;}
+    FIL file;FRESULT result=f_open(&file,path,FA_READ);
+    if(result!=FR_OK) {error(o,result);return;}
+    uint8_t buffer[512];
+    while(!*o->cancel) {
+        UINT count;result=f_read(&file,buffer,sizeof(buffer),&count);
+        if(result!=FR_OK || !count) break;
+        for(UINT i=0;i<count && !*o->cancel;i++) o->write_byte(o->context,buffer[i]);
+        taskYIELD();
+    }
+    FRESULT closed=f_close(&file);
+    if(result==FR_OK) result=closed;
+    if(!*o->cancel && result!=FR_OK) error(o,result);
+}
+static void hexdump(struct output *o,const char *path,uint32_t offset,uint32_t remaining)
+{
+    if(!mounted) {put(o,"mount the SD card first\r\n");return;}
+    FIL file;FRESULT result=f_open(&file,path,FA_READ);
+    if(result!=FR_OK) {error(o,result);return;}
+    result=f_lseek(&file,offset);
+    static const char digits[]="0123456789abcdef";
+    while(result==FR_OK && remaining && !*o->cancel) {
+        uint8_t buffer[16];char row[81];UINT count;unsigned pos=0;
+        uint32_t address=(uint32_t)f_tell(&file);
+        result=f_read(&file,buffer,remaining<16 ? (UINT)remaining : 16,&count);
+        if(result!=FR_OK || !count) break;
+        for(unsigned i=0;i<8;i++) row[pos++]=digits[(address>>(28U-4U*i))&15U];
+        row[pos++]=' ';row[pos++]=' ';
+        for(unsigned i=0;i<16;i++) {
+            row[pos++]=i<count ? digits[buffer[i]>>4] : ' ';
+            row[pos++]=i<count ? digits[buffer[i]&15] : ' ';
+            row[pos++]=' ';if(i==7) row[pos++]=' ';
+        }
+        row[pos++]=' ';row[pos++]='|';
+        for(unsigned i=0;i<16;i++) row[pos++]=i>=count ? ' ' : buffer[i]>=32 && buffer[i]<127 ? (char)buffer[i] : '.';
+        row[pos++]='|';row[pos++]='\r';row[pos++]='\n';row[pos]=0;put(o,row);
+        remaining-=count;taskYIELD();
+    }
+    FRESULT closed=f_close(&file);
+    if(result==FR_OK) result=closed;
+    if(!*o->cancel && result!=FR_OK) error(o,result);
+}
+int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const char *),
+    void (*write_byte)(void *,uint8_t),void *context,volatile uint32_t *cancel)
+{
+    if(!argc) return 0;
     const char *name=argv[0];
-    if(!same(name,"mount") && !same(name,"umount") && !same(name,"sdinfo") && !same(name,"fscheck")) return 0;
-    struct output out={write,context,cancel};
-    if(argc!=(same(name,"fscheck") ? 2U : 1U)) {put(&out,"usage: mount | umount | sdinfo | fscheck <path>\r\n");return 1;}
+    unsigned command=same(name,"mount") ? 1 : same(name,"umount") ? 2 : same(name,"sdinfo") ? 3 :
+        same(name,"fscheck") ? 4 : same(name,"ls") ? 5 : same(name,"cat") ? 6 : same(name,"hexdump") ? 7 : 0;
+    if(!command) return 0;
+    struct output out={write,write_byte,context,cancel};uint32_t offset=0,count=256;
+    if((command<=3 && argc!=1) || ((command==4 || command==6) && argc!=2) ||
+       (command==5 && argc>2) || (command==7 && (argc<2 || argc>4 ||
+       (argc>=3 && !shell_u32(argv[2],&offset)) || (argc==4 && !shell_u32(argv[3],&count)) || count>4096))) {
+        put(&out,command==5 ? "usage: ls [path]\r\n" : command==6 ? "usage: cat <path>\r\n" :
+            command==7 ? "usage: hexdump <path> [offset] [count 0..4096] (decimal)\r\n" :
+            "usage: mount | umount | sdinfo | fscheck <path>\r\n");return 1;
+    }
     while(xSemaphoreTake(lock,1)!=pdTRUE) if(*cancel) return 1;
     if(*cancel) {(void)xSemaphoreGive(lock);return 1;}
     ptrocos_sd_cancel_source(cancel);
-    if(same(name,"mount")) (void)mount(&out);
-    else if(same(name,"umount")) {
+    if(command==1) (void)mount(&out);
+    else if(command==2) {
         FRESULT result=f_mount(NULL,"0:",0);mounted=0;
         if(result==FR_OK) put(&out,"FAT unmounted\r\n");else error(&out,result);
-    } else if(same(name,"sdinfo")) {
+    } else if(command==3) {
         struct sd_card *card=ptrocos_storage_disk_card();
         put(&out,"SD status=");hex(&out,ptrocos_sd_status());put(&out," ready=");number(&out,sd_card_ready(card));
         put(&out," HC=");number(&out,card->high_capacity);put(&out," sectors=");number(&out,card->sectors);
         put(&out," reads=");number(&out,card->reads);put(&out," writes=");number(&out,card->writes);
         put(&out," exchanges=");number(&out,ptrocos_sd_exchanges());put(&out," error=");put(&out,sd_result_name(card->last_error));put(&out,"\r\n");
-    } else check_file(&out,argv[1]);
+    } else if(command==4) check_file(&out,argv[1]);
+    else if(command==5) list(&out,argc==2 ? argv[1] : "0:/");
+    else if(command==6) cat(&out,argv[1]);
+    else hexdump(&out,argv[1],offset,count);
+    if(!ptrocos_storage_disk_card()->initialized) mounted=0;
     ptrocos_sd_cancel_source(NULL);
     configASSERT(xSemaphoreGive(lock)==pdTRUE);return 1;
 }

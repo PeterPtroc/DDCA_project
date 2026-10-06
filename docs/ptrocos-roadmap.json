@@ -44,14 +44,14 @@
     {
       "order": 5,
       "name": "PtrocOS TTY and shell",
-      "status": "verified_in_simulation_and_routed_timing",
+      "status": "verified_in_simulation_routed_timing_and_uart_hardware",
       "acceptance": "Editable lines, command dispatch, UART and VGA/keyboard TTY, scheduler remains responsive.",
       "evidence": "ptrocos-shell-validation.json",
       "pending_acceptance": [
-        "UART shell on board: USB target is present but FPGA is not detected; board power/connection clarification pending",
         "Physical VGA and keyboard acceptance remains deferred as recorded in stage 4"
       ],
-      "blocks_next_stage": false
+      "blocks_next_stage": false,
+      "hardware_followup_evidence": "ptrocos-files-validation.json"
     },
     {
       "order": 6,
@@ -60,17 +60,24 @@
       "acceptance": "SD initialization and block I/O, FAT mount and file read, removal/error handling.",
       "evidence": "ptrocos-storage-validation.json",
       "pending_acceptance": [
-        "Real SD card initialization, mount and known-file CRC: FPGA not detected; card presence/format clarification pending",
-        "Board SD power/card-detect polarity, electrical timing and card compatibility",
+        "FPGA and UART restored; storage firmware loaded. Real SD mount/known-file CRC pending: controller reports no-card",
+        "Real card presence, SD card-detect/power polarity, electrical timing and card compatibility",
         "Physical keyboard input remains deferred by user; VGA monitor is not connected"
       ],
-      "blocks_next_stage": false
+      "blocks_next_stage": false,
+      "hardware_followup_evidence": "ptrocos-files-validation.json"
     },
     {
       "order": 7,
       "name": "ls/cat/hexdump",
-      "status": "pending",
-      "acceptance": "Real directory listing, file display and bounded hexadecimal output."
+      "status": "verified_in_native_soc_simulation_routed_timing_and_board_unmounted_guards",
+      "acceptance": "Real directory listing, file display and bounded hexadecimal output.",
+      "evidence": "ptrocos-files-validation.json",
+      "pending_acceptance": [
+        "Real SD directory listing, raw file bytes and hexdump against local original: controller reports no-card",
+        "Physical VGA/keyboard acceptance remains deferred as recorded in stage 4"
+      ],
+      "blocks_next_stage": false
     },
     {
       "order": 8,

@@ -111,3 +111,23 @@ class Image:
         first,length,attr=self.root_entries(model)[name]
         assert not attr&16
         return b''.join(model.storage.get(self.clustersector(c),bytes(512)) for c in self.chain(model,first))[:length]
+
+class FileImage(Image):
+    """Add empty and fragmented text files without changing stage 6 fixtures."""
+    def __init__(self,kind,prefix=0):
+        super().__init__(kind,prefix)
+        self.text=b'PtrocOS file commands\r\n'*30
+        self.setfat(10,12);self.setfat(12,self.eof)
+        if kind==32:
+            for sector in (prefix+1,prefix+7):
+                info=bytearray(self.initial[sector]);u32(info,488,self.total-self.data-8);u32(info,492,13)
+                self.initial[sector]=bytes(info)
+        for copy in range(2):
+            for i in range(self.fatsize):
+                self.initial[prefix+self.reserved+copy*self.fatsize+i]=bytes(self.fat[i*512:(i+1)*512])
+        root=bytearray(self.initial[self.rootsector])
+        root[64:96]=entry(b'EMPTY   TXT',0,0)
+        root[96:128]=entry(b'TEXT    TXT',10,len(self.text))
+        self.initial[self.rootsector]=bytes(root)
+        for i,cluster in enumerate((10,12)):
+            self.initial[self.clustersector(cluster)]=self.text[i*512:(i+1)*512].ljust(512,b'\0')

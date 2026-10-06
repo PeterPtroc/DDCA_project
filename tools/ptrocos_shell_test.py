@@ -60,7 +60,7 @@ def main():
             port.reset_input_buffer()
             exchange("synchronize", b"\x03", b"^C\r\n")
             command("uname", b"\r\nPtrocOS RV32IM / FreeRTOS 11.3.1 / Nexys A7-100T\r\n")
-            command("help", b"\r\nhelp echo clear uname uptime mem video kbd tasks sleep ddrtest\r\n")
+            command("help", b"\r\nhelp echo clear uname uptime mem video kbd tasks sleep ddrtest")
             exchange("quoted arguments", b"echo 'quoted value' plain\\ word ''\n",
                      b"\r\nquoted value plain word \r\n")
             exchange("insert at cursor", b"echo ac\x1b[Db\n", b"\r\nabc\r\n")

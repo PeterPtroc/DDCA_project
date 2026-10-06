@@ -76,3 +76,7 @@ python tools/ptrocos_shell_test.py --port COM9
 本次 JTAG 重新启动服务并重连后，USB target 与 COM9 均存在，但未识别到 FPGA，UART 也未响应。shell 位流尚未成功加载，UART 上板验收等待板卡恢复；自动脚本已准备好。前述 shell 验收结果来自完整 SoC 仿真和实际布线。
 
 键盘实物验收按用户要求延期，VGA 实屏验收等待显示器连接。PS/2 到 VGA TTY 的自动验收范围为仿真，不代替真实键盘输入或显示器成像。
+
+## 第 7 阶段的实机补验
+
+2026-10-06 11:42，FPGA 检测恢复并加载文件命令版 `storage` 位流，COM9 UART shell 完整验收及三轮 DDR/DMA CRC 通过。SD 控制器报告 `no-card`，实卡挂载与文件读取继续待验收。键盘实物验收保持延期。详细范围和产物哈希见 [文件命令验收记录](ptrocos-files-validation.json)。
