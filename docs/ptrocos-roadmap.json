@@ -131,8 +131,16 @@
     {
       "order": 12,
       "name": "ELF loader",
-      "status": "implementation_in_progress_final_soc_video_routed_and_board_pending",
-      "acceptance": "Validate ELF32 RISC-V headers and segment ranges, zero BSS, define process/runtime handoff."
+      "status": "verified_in_native_unit_soc_simulation_routed_timing_and_uart_hardware",
+      "acceptance": "Validate ELF32 RISC-V headers and segment ranges, zero BSS, define process/runtime handoff.",
+      "evidence": "ptrocos-elf-validation.json",
+      "pending_acceptance": [
+        "Real SD ELF and Bad Apple playback: controller reports no-card",
+        "Physical VGA display: monitor not connected",
+        "J8 analog waveform and listening test",
+        "Physical keyboard input: deferred by user"
+      ],
+      "blocks_next_stage": false
     }
   ]
 }

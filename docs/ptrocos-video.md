@@ -51,44 +51,8 @@ DDR 帧环从 `0x81200000` 开始，8 个槽，每槽 4096 字节；160×120 位
 
 黑白扫描沿用四个带 epoch/行号的跨时钟行槽。每输出行读取对应源行的两个 128 位 beat，像素域按 x/4、y/4 选择位；一帧 DDR 扫描为 15360 字节，60 Hz 约 0.922 MB/s。格式通过现有 held-payload frame mailbox 传递，没有直接采样另一个时钟域的格式寄存器。欠载、AXI 错误、4 KiB 拆分、front 交换窗口和复位恢复沿用原机制。
 
-## 素材与验收边界
+## 验证
 
-用户提供的原视频已移动至 `D:\Github\DDCA_project\build\ptrocos_video\assets\badapple.mp4`，原始 SHA-256 为 `d8339642fd3303a0c4971e1564515e82f69ef61b700ce17b681debb19404c23a`。转换结果为 3481 帧、15 fps、16 kHz，长度 15780564 字节，SHA-256 为 `f0cb29a958f02063c71174b9b520f0bc59aa4c07b68ac5d65a82ad0adc02eea9`。全片 66835200 个源像素与 3713066 个 PCM 采样已和独立解包参考核对。原视频与生成文件均保存在 ignored 本地构建目录。
+复现入口：`scripts/test_ptrocos_video.ps1`。结果、覆盖范围与产物 SHA 见 [ptrocos-video-validation.json](ptrocos-video-validation.json)。统一构建、命令入口和物理待验项见 [开发说明](ptrocos-development.md)。
 
-主仓库的 `build/ptrocos_video/BADAPPLE.PTV` 可复制到 FAT SD 卡根目录。另有 `BADAPPLE-SD.img`，为 32 MiB FAT16 文件镜像，包含 `BADAPPLE.PTV` 与 `README.TXT`。真实 FatFs、diskio 和 SD 驱动通过主机 SPI 模型读取整个视频文件，核对了 15780564 字节的 SHA-256，累计 30945 次扇区读取。镜像仅写入本地文件，未写物理卡。镜像生成与核验入口如下：
-
-```powershell
-python sw/tools/make_ptrocos_video_card.py build/ptrocos_video/BADAPPLE.PTV build/ptrocos_video/BADAPPLE-SD.img
-python sw/tools/check_video_card.py build/ptrocos_video/BADAPPLE-SD.img
-python sw/tools/check_video_asset_player.py build/ptrocos_video/BADAPPLE.PTV
-```
-
-真实 C 解码器和播放器也已跑完这个文件：3481 帧全部显示，丢帧为 0，66835200 个像素与 3713066 个 PCM 采样一致，模拟播放时间为 232067 ms，最大帧延迟为 16 ms。该测试使用主机图形与音频适配模型，覆盖长片帧环复用和音频采样时钟；它没有验证板卡、真实 DDR 时序或模拟音频。
-
-2026-10-06 的板卡 UART 验收通过 9 项。三次 4 帧诊断均为 267 ms、零丢帧，最大帧延迟分别为 17/18/17 ms；每次音频播放 2133 个采样，无欠载，DDR DMA 校验通过。取消清空音频、重试、RGB565/黑白格式双向切换、回到文本模式及旧音频诊断均通过，输入丢弃计数为 0。记录位于 `build/ptrocos_video_hardware/result.json` 和 `uart.log`。
-
-板卡已通过 JTAG 加载视频固件，写入仅限易失配置。键盘实物验收按用户要求延期；VGA 显示器未连接，SD 再次报告 `no-card`，J8 模拟波形和音质未验。主机转换、引脚模型仿真和 UART 状态不能代替 Bad Apple 的实卡、画面与音质验收。
-
-## 实现验收
-
-| 检查 | 已通过结果 |
-| --- | --- |
-| 独立 PTV 解码 | 4983 项，432 帧，252172 个 PCM 采样 |
-| 独立播放器 | 69 项，1642 帧，903952 个 PCM 采样，覆盖慢读丢帧、帧环边界、取消与 tick 回绕 |
-| 真实文件命令链 | 104 项，SD 驱动 132 项，覆盖 FAT12/16/32、MBR、碎片文件、取消、拔卡和 CRC 恢复 |
-| FFmpeg 转换工具 | 10 项，含有声、无声、宽高比、11025 Hz 与拒绝覆盖 |
-| BMP/WAV 回归 | 解码 4444 项，命令 108 项 |
-| RGB565 单元仿真 | 小场景 5375 像素，全屏 1228800 像素 |
-| 黑白单元仿真 | 5529599 像素，含换格式、复位、故障注入和并发访问 |
-| 完整 SoC，PC style 0 | 106665218 周期，17510400 像素，4307 个 PCM 采样，197 次 SD 读取，22 次帧交换 |
-| 完整 SoC，PC style 1 | 103331930 周期，16896000 像素，4307 个 PCM 采样，195 次 SD 读取，22 次帧交换 |
-| 100 MHz 实现时序 | setup +0.102 ns、hold +0.018 ns、pulse +0.206 ns；负裕量总和均为 0，内部未约束端点为 0 |
-| DRC | 0 Error、0 Critical Warning、50 Warning，原始报告保留 |
-
-完整 SoC 使用真实 RV32IM/FreeRTOS 固件、碎片 FAT16 文件、延迟 MISO 的 SD 引脚模型和完整地址标记的稀疏 DDR 模型。每个已扫描像素和播放采样逐项比较，禁止覆盖正在扫描的 front；正常有声、无声、读卡取消、未挂载保护、重新挂载重试、并发 DMA、调度和返回文本均通过。style 0 另验证 CRC 错误后的挂载恢复。正常播放的图形和音频欠载、读错误均为 0；单元测试中的非零故障计数来自主动注入。两种实现最后分别记录 1064/1031 次 timer IRQ 与 2123/2070 次 yield，输入丢弃均为 0。
-
-验收清单记录 137 个产物与 186 份源码/输入生成器的 SHA-256。产物包含原素材、转换片、FAT16 文件镜像、固件、最终位流/checkpoint、参考像素、原始报告与串口日志；失败的物理优化尝试作为追踪记录保留，不计入通过结果。提交后按清单复制到主仓库，并保存 `build/ptrocos-stage10-snapshot/`，其中 `source_snapshot/` 保留隔离工作树的实际源码字节，避免 Windows 换行转换影响追溯。
-
-初版范围校验把动态高度放在 stride 乘法中，造成组合 DSP 路径过长。最终 RTL 分别计算 RGB565 与黑白模式的常量高度范围再选择结果。后续仅对物理布局、布线和时钟偏移做优化；临时 setup uncertainty 在最终报告前恢复为 0.000 ns，CPU RTL、100 MHz 时钟和 +0.100 ns 验收门槛均未修改。`build/ptrocos_video/recover_route8.tcl` 保存最后一次优化步骤；最终 checkpoint 使用公共 `scripts/resume_ptrocos_route.tcl -tclargs video verify` 复核通过。
-
-CDC 报告仍包含 held-payload mailbox 与 MIG 的结构提示。与第 9 阶段相比，frame mailbox 的返回值从 enable 一位扩展为 enable/format 两位，因此一个 CDC-1 分类改为一个 CDC-4；报告路径是 `response_data_reg[1:0]` 到 `source_rdata_reg[1:0]`。两位沿用原握手，在 completion 同步后接收，并由公共验收脚本逐路径核对 10 ns datapath bound。6 个 graphics mailbox 的 12 组覆盖共 309 个端点，比第 9 阶段多一个；其余 CDC 分类数量未变。CDC 原始报告不计作零告警。
+用户提供的原片保存于 `build/ptrocos_video/assets/badapple.mp4`；转换片为 `build/ptrocos_video/BADAPPLE.PTV`，3481 帧、160×120、15 fps、16 kHz 单声道，15,780,564 字节。全片像素和采样已由独立主机参考核对；`BADAPPLE-SD.img` 是生成的 FAT16 镜像，未写物理卡。

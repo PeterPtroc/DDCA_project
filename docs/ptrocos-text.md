@@ -45,33 +45,6 @@ PS/2 输入使用两级同步器与连续 8 个样本的滤波。接收器验证
 
 软件解码处理左右 Shift/Ctrl、Caps Lock 的按下/释放和重复、E0 扩展键、E1 Pause 及 Print Screen 伪 Shift，输出 ASCII 和方向/Home/End/Delete 等键值。传输错误或溢出后清 FIFO 并复位解码器，避免丢失 break 后修饰键保持按下。
 
-## 构建与验证
+## 验证
 
-```powershell
-.\scripts\build_ptrocos.ps1 -Firmware text -ToolchainPrefix <riscv-none-elf-prefix>
-.\scripts\test_text_devices.ps1
-.\scripts\test_ptrocos_text.ps1
-.\scripts\test_ptrocos_ddr2.ps1
-vivado -mode batch -source scripts/build_ptrocos_bitstream.tcl -tclargs text
-```
-
-文本工程为 `build/ptrocos_text_vivado/`，DDR2 工程仍为 `build/ptrocos_vivado/`，两套固件和 bitstream 分开输出。重复构建当前源列表创建的工程可使用 `-tclargs text reuse`；更新源列表后使用默认的完整工程创建。Vivado 的 `-tclargs` 必须放在命令末尾。
-
-2026-10-06 自动验证通过：126 万个完整光栅像素，包括所有可打印字符、16 色、消隐、光标、闪烁，以及 byte enable、边界与跨域事务中复位。PS/2 测试发送 328 个包，覆盖全部 256 个字节、错误位、残帧超时、短毛刺、满 FIFO、溢出、同时入队/出队和复位；host 测试调用生产 C 解码器验证 1050 个扫描码字节。
-
-完整 SoC 使用真实 GCC 固件、三种频率的逻辑时钟和 DDR mailbox/AXI 模型。两种 PC 实现各验证 2400 字符写回、字节访问与边界、525704 个寄存器等待周期、9 个键事件写入 VRAM、18 次定时中断，以及显示期间 DDR/DMA 的 48 次 AXI 写和 48 次读。原 DDR2 固件也在新增接口存在时通过两种 PC 实现的回归。
-
-最终板级 100 MHz WNS 为 +0.177 ns，WHS +0.022 ns，WPWS +0.206 ns，无负 slack；DRC 9 条 Warning、零 Error/Critical Warning。CDC 报告仍有原 GPIO 的 16 条 CDC-1 和共同异步复位的 2 条 CDC-10，未做整体豁免。新增 PS/2 与 mailbox toggle 识别为 ASYNC_REG 同步器，视频 mailbox 的 21 位请求和 32 位响应受 10 ns payload 延迟约束。最终输入和结果哈希见 [ptrocos-text-validation.json](ptrocos-text-validation.json)。
-
-## 上板范围与待验收项
-
-固件启动检查字符内存、寄存器及帧计数，并在扫描期间执行 DDR/DMA 小范围复制，完成后进入键盘回显。UART `v` 打印视频、定时中断及 PS/2 状态。
-
-```powershell
-vivado -mode batch -source scripts/program_ptrocos.tcl -tclargs <probe打印的target-url> text
-python tools/ptrocos_text_test.py --port COM9
-# 将来恢复实物输入验收：
-python tools/ptrocos_text_test.py --port COM9 --listen-seconds 60
-```
-
-已完成板级启动与视频状态检查，证实固件自检结束、帧计数接近 60 Hz、定时中断递增；它不证明 VGA 连接器模拟波形或显示器成像。显示器未连接，实屏验收待补。键盘连接后未观察到字符，供电是否足够尚未确认；用户要求跳过键盘实物验收，留待以后。两项保留待办，不阻塞 TTY/shell 开发。
+复现入口：`scripts/test_text_devices.ps1`。结果、覆盖范围与产物 SHA 见 [ptrocos-text-validation.json](ptrocos-text-validation.json)。统一构建、命令入口和物理待验项见 [开发说明](ptrocos-development.md)。

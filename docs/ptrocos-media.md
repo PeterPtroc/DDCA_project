@@ -47,24 +47,6 @@ BMP 未提交前取消或读失败会放弃 back buffer，保留 front buffer。
 
 开始播放前通常预填 1024 帧，短文件在最后一批入队后启动。软件等待空间时每 1 ms 让出 CPU；从开始等待起 1 秒仍未取得空间或排空则报告输出错误。FIFO 满时拒绝覆盖，排空期间拒绝新写入。欠载输出中点静音并计数；媒体命令发现 sticky 错误后停止播放。正常结束保留完成计数供 `audio info` 检查，下一次播放先复位计数。
 
-## 验证入口
+## 验证
 
-```powershell
-.\scripts\test_ptrocos_media.ps1 -ToolchainPrefix D:\Github\DDCA_project\tools\.local\xpack-riscv-none-elf-gcc-15.2.0-1\bin\riscv-none-elf
-vivado -mode batch -source scripts/build_ptrocos_bitstream.tcl -tclargs media
-python tools/ptrocos_media_test.py --port COM9
-```
-
-独立 C 解码检查使用 Python 生成的字节、逐像素和逐采样参考值；原生命令检查使用真实 FatFs、diskio、SD C 驱动和 FAT12/16/32/MBR 碎片文件，图形与音频终端为原生测试适配器。完整 SoC 使用真实 RV32IM 固件、FreeRTOS、延迟 MISO 的 SD 引脚模型、DDR AXI 模型、VGA 和 PCM RTL，分别运行两种 PC 实现。
-
-2026-10-06 已完成独立解码 4444 项检查，比较 6145280 个像素与 21736 个采样；原生命令 108 项、原文件命令回归 450 项通过。音频 RTL 检查 538 个采样、448 次同时入队/出队，以及 8000/11025/44100/48000 Hz 的精确采样间隔。PDM 在 65536 周期窗口内的四种测试密度与输入值完全一致。
-
-完整 SoC 两种 PC 实现均通过：style 0 比较 11980800 个 VGA 像素、9497 个 PCM 采样，style 1 比较 10444800 个像素、9465 个采样。两者均检查真实固件读取碎片化 BMP/WAV、取消与重试、输出排空、并发 DDR DMA、调度和切回文本；style 0 另验证 WAV 读取期间拔卡与 BMP CRC 错误后的重新挂载。取消触发等待当前命令开始及当前音频状态，避免使用上一条命令留下的计数。
-
-最终媒体固件为 text 51268 字节、data 12 字节、BSS 31696 字节，ROM 镜像 51280/65536 字节。布线后的 setup WNS 为 +0.181 ns、hold WHS 为 +0.023 ns、pulse-width WPWS 为 +0.206 ns，三种负裕量总和均为零，内部未约束端点为 0。DRC 为 0 Error、0 Critical Warning、47 Warning；CDC 标记及数量与第 8 阶段相同，原始报告保留在验收记录中。音频与 CPU 共用时钟，没有新增跨时钟接口。全设计占 11761 LUT、11722 FF、40 RAMB36、1 RAMB18、3 DSP；音频 FIFO 占其中 2 个 RAMB36。
-
-为达到既有 +0.100 ns 时序门槛，媒体工程的物理优化临时增加 0.150 ns setup uncertainty，优化后恢复为 0.000 ns 用户额外 uncertainty，再执行公共报告与位流验收。CPU 仍为 100 MHz，未修改 CPU RTL，也未放宽最终门槛。可复现入口为 `resume_ptrocos_route.tcl media`，`media verify` 仅检查已有最终 checkpoint。
-
-JTAG 已加载媒体易失位流，COM9 的 11 项串口检查通过：三轮各 256 帧音频均正常排空且欠载为 0，VGA 扫描期间 DDR DMA/CRC 通过，Ctrl+C 清空音频、取消后重试、任务响应和文本模式恢复通过，输入丢失为 0。这里只核对板上状态与计数，尚未测量 J8 的模拟波形。
-
-键盘实物验收按用户要求延期，VGA 显示器未连接。实卡此前仍报告 `SD=no-card`；UART 的 FIFO 状态、完成计数和并发 DDR 诊断不能代替实卡文件播放、VGA 画面与 J8 模拟音质验收。
+复现入口：`scripts/test_ptrocos_media.ps1`。结果、覆盖范围与产物 SHA 见 [ptrocos-media-validation.json](ptrocos-media-validation.json)。统一构建、命令入口和物理待验项见 [开发说明](ptrocos-development.md)。

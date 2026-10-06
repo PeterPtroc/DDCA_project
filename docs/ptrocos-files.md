@@ -32,37 +32,6 @@ umount
 
 `cat` 使用 512 字节读缓冲；`hexdump` 使用 16 字节读缓冲及 81 字节行缓冲；`ls` 使用单个 `FILINFO`。每个块或目录项后让出 CPU，输入任务与 heartbeat 保持运行。输出阶段取消保留可用挂载；SD 事务中取消、拔卡或 CRC 错误使驱动失效时，同时清除应用的挂载状态，后续命令提示重新 `mount`。这些文件命令只读，不创建、写入或格式化文件。
 
-## 验证入口
+## 验证
 
-```powershell
-python sw/tools/check_storage_commands.py
-python sw/tools/check_storage_uart_tool.py
-python sw/tools/check_tty.py
-.\scripts\build_ptrocos.ps1 -Firmware storage -ToolchainPrefix <riscv-none-elf前缀>
-.\scripts\test_ptrocos_files.ps1
-vivado -mode batch -source scripts/build_ptrocos_bitstream.tcl -tclargs storage
-```
-
-验收结果：文件命令原生 450 项、SD 驱动 132 项、FatFs 回归 306 项、TTY 20,286 个事件、串口工具边界 13 项均通过。SoC 两种 PC 实现分别完成 15,726,193 / 7,725,654 个周期；UART TTY 最低剩余栈为 905 words，heap 最低剩余 7968 bytes。最终 WNS +0.110 ns、WHS +0.038 ns、WPWS +0.206 ns，各负裕量总和为零，DRC 无 Error/Critical Warning。
-
-原生测试编译实际 `storage_commands.c`、FatFs、diskio、SD 驱动及命令解析器，只替换板级传输和调度接口。独立 FAT12/16/32、MBR 镜像验证目录与碎片文件，Python 从字面文件数据计算预期输出；测试覆盖全 256 字节值、空文件、跨扇区文本、UTF-8/LFN、偏移越界、随机长度、4096 字节上限、错误参数、并发读取、持锁等待取消、输出取消、事务取消、CRC 错误、拔卡与重新挂载。长文件名测试通过已验证的 FatFs 写接口建立文件，再独立解码 FAT 和目录确认内容；命令本身不写卡。
-
-完整 SoC 测试使用真实 RV32IM/FreeRTOS 固件、引脚级 SD 模型、延迟 12 ns 的 MISO、独立稀疏 AXI 存储器和三组时钟。两种 PC 实现分别挂载 SDHC/FAT16 和 SDSCv1/FAT12，从 UART 引脚逐字节核对 1100 字节二进制、690 字节碎片文本及空文件；完整比较带非对齐偏移、尾行填充的 hexdump。PC 实现 0 额外检查取消、拔卡、CRC 错误及重新挂载。也检查 SD 无写命令、SPI 恢复空闲、调度进度和输入无丢失。
-
-`check_storage_uart_tool.py` 用模拟串口检查上板工具的原始字节边界，覆盖文件内含提示符、任意分块、空文件、无末尾换行及错误字节拒绝；这项测试不代表硬件验收。运行结果、源文件与产物 SHA-256 见 [ptrocos-files-validation.json](ptrocos-files-validation.json)。第 6 阶段的历史产物已按原记录哈希保存在主工作区 `build/ptrocos-stage6-snapshot/`，当前 `storage` 构建路径用于第 7 阶段。
-
-本阶段发现旧 Vivado 工程的 `reuse` 分支未补装第 6 阶段的 post-place ROM 地址扇出优化。构建脚本现会先补齐该 hook；通过真实工程属性读回核对，并从本次固件的 placed checkpoint 重跑优化、路由和既定时序/DRC 门槛。首次 +0.062 ns 的结果及最终报告均保留。优化只复制物理寄存器，不修改 CPU RTL、频率或 ROM 时钟相位。
-
-## 上板结果与待验收
-
-2026-10-06 11:42 已将本阶段位流加载到 JTAG `210292B7F710A` 的 `xc7a100t_0`。COM9 上 UART shell 验收通过，包括编辑、历史、补全、引号/转义、行长边界、队列丢失恢复、Ctrl+C、三轮 DDR/DMA CRC、heap/栈及定时器和 VGA 帧计数进度。此测试主动制造一次输入队列溢出，记录的 `input_dropped=1` 属于该测试；SoC 文件命令测试未丢输入。
-
-`mount` 返回 `FatFs error=3 SD=no-card`，`sdinfo` 显示状态 `0`、ready/read/write/exchange 均为 `0`；实卡存在与检测极性尚未确认。板上 `ls/cat/hexdump` 的未挂载提示及 `umount` 恢复已检查，没有实际 SD 字节交换或文件读取。键盘和显示器实物验收继续延期。
-
-确认已有 FAT 卡并能挂载后，使用与卡上文件完全相同的本地原件进行只读验收：
-
-```powershell
-python tools/ptrocos_storage_test.py --port COM9 --file /HELLO.TXT --expected C:\data\HELLO.TXT --files
-```
-
-工具比较 `fscheck` 的字节数与 CRC、`ls` 的文件大小、`cat` 的每个原始字节及前 256 字节的 hexdump，并检查 heap、任务栈和调度进度。实卡初始化、板级 SD 电源与检测极性、电气时序、显示效果仍待验收。键盘实物验证保持延期。
+复现入口：`scripts/test_ptrocos_files.ps1`。结果、覆盖范围与产物 SHA 见 [ptrocos-files-validation.json](ptrocos-files-validation.json)。统一构建、命令入口和物理待验项见 [开发说明](ptrocos-development.md)。

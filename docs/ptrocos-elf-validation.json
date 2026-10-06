@@ -1,0 +1,309 @@
+{
+  "stage": 12,
+  "date": "2026-10-07",
+  "baseline_commit": "80cc06f144e8c954c662490dbeac25e489bfda8d",
+  "parent_commit": "171dca2937b32b93aee4fbe6d9cfd2936949322f",
+  "submission_branch": "PtrocOS",
+  "status": "verified_in_native_unit_soc_simulation_routed_timing_and_uart_hardware",
+  "frozen_cpu_kernel_prior_soc_and_top": true,
+  "cache_implemented": false,
+  "firmware": {
+    "architecture": "rv32im_zicsr / ilp32",
+    "optimization": "-Os",
+    "text_bytes": 64680,
+    "data_bytes": 12,
+    "bss_bytes": 35616,
+    "rom_image_bytes": 64692,
+    "rom_limit_bytes": 65536,
+    "hex_words": 16173
+  },
+  "elf_contract": {
+    "class": "ELF32 little endian ET_EXEC EM_RISCV=243 flags=0",
+    "application_abi": 1,
+    "code_base": 65536,
+    "code_bytes": 16384,
+    "data_base": 2155872256,
+    "data_bytes": 1044480,
+    "stack_base": 2156916736,
+    "stack_bytes": 4096,
+    "timeout_ms": 5000,
+    "trusted_M_mode": true,
+    "process_isolation": false,
+    "dynamic_linking": false,
+    "custom_PT_NOTE": true
+  },
+  "native_decode": {
+    "checks": 916,
+    "copied_bytes": 397865,
+    "zeroed_bytes": 244443,
+    "reference": "Independent ELF bytes, whole memory and canaries; malformed prevalidation writes nothing"
+  },
+  "app_memory_unit": {
+    "transactions": 9221,
+    "stores": 4608,
+    "fetches": 53258,
+    "coverage": [
+      "4096 words",
+      "byte lanes",
+      "full-address alias rejection",
+      "read-first",
+      "no duplicated writes",
+      "reset retained content"
+    ]
+  },
+  "app_memory_ooc": {
+    "ramb36": 4,
+    "setup_wns_ns": 3.136,
+    "hold_whs_ns": 0.041,
+    "board_timing_claim": false
+  },
+  "native_storage": {
+    "checks": 96,
+    "sd_driver_checks": 132,
+    "filesystems": [
+      "FAT12",
+      "FAT16",
+      "FAT32",
+      "MBR FAT16"
+    ],
+    "coverage": [
+      "actual compiled applications",
+      "fragmented files",
+      "every copied and BSS byte",
+      "cancel",
+      "removal",
+      "CRC",
+      "retry",
+      "close and mount state"
+    ]
+  },
+  "soc_simulation": [
+    {
+      "style": 0,
+      "cycles": 14027997,
+      "app_retired": 2770737,
+      "sd_reads": 28,
+      "timer_irqs": 138,
+      "yields": 237,
+      "restored_calls": 9
+    },
+    {
+      "style": 1,
+      "cycles": 14027997,
+      "app_retired": 2770737,
+      "sd_reads": 28,
+      "timer_irqs": 138,
+      "yields": 237,
+      "restored_calls": 9
+    }
+  ],
+  "supplementary_video_regression": {
+    "0": {
+      "accepted_as_pass": false,
+      "reason": "Supplementary long regression interrupted before final PASS; user requested commit and cleanup; no restart",
+      "completed_playbacks": [
+        {
+          "fps": 30,
+          "frames": 8,
+          "read": 8,
+          "displayed": 8,
+          "dropped": 0,
+          "elapsed_ms": 267
+        }
+      ]
+    },
+    "1": {
+      "accepted_as_pass": false,
+      "reason": "Supplementary long regression interrupted before final PASS; user requested commit and cleanup; no restart",
+      "completed_playbacks": [
+        {
+          "fps": 30,
+          "frames": 8,
+          "read": 8,
+          "displayed": 8,
+          "dropped": 0,
+          "elapsed_ms": 267
+        }
+      ]
+    }
+  },
+  "soc_coverage": [
+    "real RV32IM FreeRTOS",
+    "SD pin model fragmented ELF",
+    "argv and BSS reload",
+    "illegal instruction recovery",
+    "non-cooperative timeout",
+    "Ctrl+C cancellation and retry",
+    "DDR DMA",
+    "scheduler",
+    "independent retired-register comparison RA SP gp tp s0..s11 across 9 calls per style"
+  ],
+  "implementation": {
+    "setup_wns_ns": 0.268,
+    "setup_tns_ns": 0.0,
+    "hold_whs_ns": 0.018,
+    "hold_ths_ns": 0.0,
+    "pulse_wpws_ns": 0.206,
+    "pulse_tpws_ns": 0.0,
+    "cpu_period_ns": 10,
+    "internal_unconstrained_endpoints": 0,
+    "drc_errors": 0,
+    "drc_critical_warnings": 0,
+    "drc_warnings": 61,
+    "cdc": {
+      "CDC-1": {
+        "severity": "Critical",
+        "count": 20
+      },
+      "CDC-2": {
+        "severity": "Warning",
+        "count": 23
+      },
+      "CDC-3": {
+        "severity": "Info",
+        "count": 24
+      },
+      "CDC-4": {
+        "severity": "Critical",
+        "count": 1
+      },
+      "CDC-8": {
+        "severity": "Warning",
+        "count": 2
+      },
+      "CDC-9": {
+        "severity": "Info",
+        "count": 3
+      },
+      "CDC-10": {
+        "severity": "Critical",
+        "count": 2
+      },
+      "CDC-15": {
+        "severity": "Warning",
+        "count": 456
+      }
+    },
+    "resources": {
+      "total_luts": 12176,
+      "logic_luts": 11350,
+      "lutram": 680,
+      "srl": 146,
+      "flip_flops": 12036,
+      "ramb36": 44,
+      "ramb18": 1,
+      "dsp": 3
+    },
+    "graphics_cdc_coverage": [
+      {
+        "path": ".*graphics/register_cdc/payload_(we|addr|data|strobes)",
+        "count": 43
+      },
+      {
+        "path": ".*graphics/register_cdc/response_(data|error)",
+        "count": 32
+      },
+      {
+        "path": ".*graphics/frame_cdc/payload_(we|addr|data|strobes)",
+        "count": 64
+      },
+      {
+        "path": ".*graphics/frame_cdc/response_(data|error)",
+        "count": 2
+      },
+      {
+        "path": ".*graphics/row_cdc\\[0\\]\\.mailbox/payload_(we|addr|data|strobes)",
+        "count": 41
+      },
+      {
+        "path": ".*graphics/row_cdc\\[0\\]\\.mailbox/response_(data|error)",
+        "count": 1
+      },
+      {
+        "path": ".*graphics/row_cdc\\[1\\]\\.mailbox/payload_(we|addr|data|strobes)",
+        "count": 41
+      },
+      {
+        "path": ".*graphics/row_cdc\\[1\\]\\.mailbox/response_(data|error)",
+        "count": 1
+      },
+      {
+        "path": ".*graphics/row_cdc\\[2\\]\\.mailbox/payload_(we|addr|data|strobes)",
+        "count": 41
+      },
+      {
+        "path": ".*graphics/row_cdc\\[2\\]\\.mailbox/response_(data|error)",
+        "count": 1
+      },
+      {
+        "path": ".*graphics/row_cdc\\[3\\]\\.mailbox/payload_(we|addr|data|strobes)",
+        "count": 41
+      },
+      {
+        "path": ".*graphics/row_cdc\\[3\\]\\.mailbox/response_(data|error)",
+        "count": 1
+      }
+    ],
+    "app_memory_timed_endpoints": 622,
+    "app_memory_clock": "related 100MHz, both RAM ports falling edge, no asynchronous timing cuts",
+    "audio_electrical": "A11 OBUFT I=GND / D12 amplifier enable / 10ns output bound"
+  },
+  "hardware": {
+    "port": "COM9",
+    "target": "localhost:31234/xilinx_tcf/Digilent/210292B7F710A",
+    "programmed": true,
+    "volatile_configuration_only": true,
+    "bit_sha256": "1cea42e40f3bbae6698f207225f856c3d99bc1f1bfd78421c61ae93f8fec1109",
+    "uart_verified": true,
+    "checks": 7,
+    "input_dropped": 0,
+    "real_sd_mounted": false,
+    "real_sd_elf_execution_verified": false,
+    "visual_display_verified": false,
+    "keyboard_physical_verified": false
+  },
+  "card_image": {
+    "format": "FAT16 superfloppy",
+    "bytes": 8388608,
+    "sha256": "c85fe1589073327bc567368db0898cea9442113ff50f2d9ca7eb6c292c60056a",
+    "files": {
+      "HELLO.ELF": {
+        "bytes": 636,
+        "sha256": "4fbe0c4cd1809f32c75d8f7386bd698630c488d3c9bea9690ddeb555e7373941"
+      },
+      "FAULT.ELF": {
+        "bytes": 204,
+        "sha256": "328447d10864a55afd127bb74f8545c26b27224bd88242eab11ae47f4652d499"
+      },
+      "LOOP.ELF": {
+        "bytes": 200,
+        "sha256": "defa3f7cb87b8727ec7ad4ff8860695ab5463501ff3361503599d48401c4b1f2"
+      },
+      "BAD.ELF": {
+        "bytes": 636,
+        "sha256": "beea0224a5b16944afd4f7141a40338ec0fbd8ca4e5b27112eb50b37c7ac67b0"
+      }
+    },
+    "fragmented": true,
+    "physical_disk_written": false
+  },
+  "pending_acceptance": [
+    "Real SD ELF and Bad Apple playback: controller reports no-card",
+    "Physical VGA display: monitor not connected",
+    "J8 analog waveform and listening test",
+    "Physical keyboard input: deferred by user"
+  ],
+  "blocks_next_stage": false,
+  "user_cleanup_requested": true,
+  "source_hash_scope": "Exact isolated-worktree bytes; Windows main checkout may use CRLF; archive preserves source_snapshot bytes.",
+  "test_provenance": "Accepted ELF native/unit/SoC/gate/UART logs are preserved. Supplementary video re-run lacks final PASS and is excluded. Stage10 full video regression remains recorded separately.",
+  "prior_artifacts_hash_verified": 389,
+  "full_record": {
+    "path": "../build/ptrocos-validation/ptrocos-elf-validation.json",
+    "sha256": "cf89711e17302ed2be2492e11d2e9f8cfaba817b0b835566553d2184b8173610",
+    "hash_entries": {
+      "artifact_sha256": 46,
+      "source_sha256": 300
+    }
+  }
+}
