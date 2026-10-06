@@ -122,8 +122,11 @@
     {
       "order": 11,
       "name": "Evaluate I/D cache",
-      "status": "deferred",
-      "acceptance": "Measure stalls first; if implemented, preserve MMIO ordering and DMA coherence."
+      "status": "evaluated_uncached_soc_measurements_and_address_replay_no_cache_added",
+      "acceptance": "Measure stalls first; if implemented, preserve MMIO ordering and DMA coherence.",
+      "evidence": "ptrocos-cache-validation.json",
+      "cache_implemented": false,
+      "blocks_next_stage": false
     },
     {
       "order": 12,

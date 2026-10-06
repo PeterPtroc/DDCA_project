@@ -8,6 +8,8 @@
 
 图形与媒体接口分别见 [DDR framebuffer 与 VGA graphics](ptrocos-graphics.md)和 [BMP 显示与 WAV 播放](ptrocos-media.md)。
 
+视频阶段之后的测量、地址重放与缓存取舍见 [I/D cache 评估](ptrocos-cache-evaluation.md)。
+
 1. 保留正确 CPU 基线。
 2. RV32M 与独立 ISA 测试。
 3. DDR2 与 DMA。

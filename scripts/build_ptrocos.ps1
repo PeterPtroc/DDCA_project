@@ -1,4 +1,4 @@
-param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell','storage','graphics','media','video')][string]$Firmware='ddr2')
+param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell','storage','graphics','media','video','perf')][string]$Firmware='ddr2')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $Root=Split-Path -Parent $PSScriptRoot
