@@ -98,7 +98,10 @@ vivado -mode batch -source scripts/check_rv32m_timing.tcl
 | `0x4000b000 / 0x40010000` | VGA 文本控制 / 字符单元 |
 | `0x4000c000` | PS/2 键盘接收 |
 | `0x4000d000` | SD SPI 字节交换与电源控制 |
+| `0x4000e000` | DDR framebuffer 控制与扫描状态 |
 | `0x80000000..0x87ffffff` | 128 MiB DDR2 |
+
+图形阶段的软件绘图接口、两个 DDR 帧缓冲、AXI 读仲裁、跨时钟行队列和验收入口见 [ptrocos-graphics.md](ptrocos-graphics.md)。
 
 DMA 偏移 `0/4/8` 分别设置源地址、目标地址和数据字数量，`0x0c` 为命令，`0x10` 为状态，`0x14` 为已复制数据字数量。命令位 `0/1/2` 分别为启动、取消、清除状态；状态低三位为 busy/done/error，错误码在 `[15:8]`。
 

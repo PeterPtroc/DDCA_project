@@ -4,6 +4,9 @@ const char *const shell_commands[]={"help","echo","clear","uname","uptime","mem"
 #ifdef PTROCOS_STORAGE
     ,"mount","umount","sdinfo","fscheck","ls","cat","hexdump"
 #endif
+#ifdef PTROCOS_GRAPHICS
+    ,"gfx"
+#endif
 };
 const unsigned shell_command_count=sizeof(shell_commands)/sizeof(shell_commands[0]);
 int shell_parse(char *line,char **argv,unsigned *argc)

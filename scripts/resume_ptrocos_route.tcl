@@ -2,8 +2,8 @@
 # No failed or unvalidated bitstream is emitted. Uses no RTL or firmware edits.
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
-if {[llength $argv]<1 || [llength $argv]>2 || [lindex $argv 0] ni {ddr2 text shell storage} ||
-    ([llength $argv]==2 && [lindex $argv 1] ne "verify")} {error "Specify firmware: ddr2/text/shell/storage, optionally verify"}
+if {[llength $argv]<1 || [llength $argv]>2 || [lindex $argv 0] ni {ddr2 text shell storage graphics} ||
+    ([llength $argv]==2 && [lindex $argv 1] ne "verify")} {error "Specify firmware: ddr2/text/shell/storage/graphics, optionally verify"}
 set firmware [lindex $argv 0]
 set folder [expr {$firmware eq "ddr2" ? "ptrocos_vivado" : "ptrocos_${firmware}_vivado"}]
 set out [file join $root build $folder]
@@ -14,6 +14,10 @@ set checkpoint [expr {$verify_only ? [file join $out ptrocos_routed.dcp] :
 if {![file isfile $checkpoint]} {error "Missing checkpoint: $checkpoint"}
 open_project [file join $out ptrocos.xpr]
 open_checkpoint $checkpoint
+if {$firmware eq "graphics" && !$verify_only} {
+    # Reapply the current bounded CDC constraints, including physical replicas.
+    read_xdc [file join $root constraints ptrocos_graphics.xdc]
+}
 if {!$verify_only} {
     source [file join $script_dir optimize_ptrocos_rom.tcl]
     phys_opt_design -directive AggressiveExplore

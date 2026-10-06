@@ -1,4 +1,4 @@
-param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell','storage')][string]$Firmware='ddr2')
+param([string]$ToolchainPrefix,[ValidateSet('ddr2','text','shell','storage','graphics')][string]$Firmware='ddr2')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $Root=Split-Path -Parent $PSScriptRoot
@@ -26,7 +26,7 @@ $Flags=@('-march=rv32im_zicsr','-mabi=ilp32','-mcmodel=medany','-msmall-data-lim
 $Objects=@()
 $Sources=@('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/freertos/runtime.c','sw/ptrocos/startup.S')
 if($Firmware -eq 'text') {$Sources+=@('sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c')}
-if($Firmware -in @('shell','storage')) {
+if($Firmware -in @('shell','storage','graphics')) {
     $Flags+=@('-Isw/ptrocos/os','-Isw/freertos/kernel/include',
         '-Isw/freertos/kernel/portable/GCC/RISC-V',
         '-Isw/freertos/kernel/portable/GCC/RISC-V/chip_specific_extensions/RISCV_MTIME_CLINT_no_extensions')
@@ -38,11 +38,15 @@ if($Firmware -in @('shell','storage')) {
         'sw/freertos/kernel/portable/GCC/RISC-V/port.c',
         'sw/freertos/kernel/portable/GCC/RISC-V/portASM.S')
 }
-if($Firmware -eq 'storage') {
+if($Firmware -in @('storage','graphics')) {
     $Flags+=@('-DPTROCOS_STORAGE','-Isw/ptrocos/storage','-Ithird_party/fatfs')
     $Sources+=@('sw/ptrocos/storage/sd_card.c','sw/ptrocos/storage/storage_disk.c',
         'sw/ptrocos/storage/storage_hw.c','sw/ptrocos/storage/storage_commands.c',
         'sw/ptrocos/storage/ff_port.c','third_party/fatfs/ff.c','third_party/fatfs/ffunicode.c')
+}
+if($Firmware -eq 'graphics') {
+    $Flags+=@('-DPTROCOS_GRAPHICS')
+    $Sources+=@('sw/ptrocos/graphics.c')
 }
 foreach($source in $Sources) {
     $object=Join-Path $Out ((($source -replace '[/\\]','_') -replace '\.[cS]$','.o'))

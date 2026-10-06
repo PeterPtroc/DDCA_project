@@ -16,6 +16,7 @@ module ptrocos_soc #(
     input wire [7:0] capture_in,
     input wire uart_rx,
     input wire pixel_clk, pixel_rst, ps2_clk, ps2_data,
+    input wire ui_clk,ui_rst,
     input wire sd_miso, sd_cd_n,
     output wire sd_sck, sd_mosi, sd_cs_n, sd_reset,
     output wire [3:0] vga_red, vga_green, vga_blue,
@@ -37,6 +38,16 @@ module ptrocos_soc #(
     input wire memory_ready,
     input wire [31:0] memory_rdata,
     input wire memory_error,
+    output wire [26:0] scan_araddr,
+    output wire [7:0] scan_arlen,
+    output wire [2:0] scan_arsize,
+    output wire [1:0] scan_arburst,
+    output wire scan_arvalid,
+    input wire scan_arready,
+    input wire [127:0] scan_rdata,
+    input wire [1:0] scan_rresp,
+    input wire scan_rlast,scan_rvalid,
+    output wire scan_rready,
     output wire trap_taken,
     output wire [31:0] trap_cause,
     output wire [31:0] firmware_result
@@ -68,6 +79,7 @@ module ptrocos_soc #(
   wire vga_reg_sel = da[31:12] == 20'h4000b;
   wire keyboard_sel = da[31:12] == 20'h4000c;
   wire sd_sel = da[31:12] == 20'h4000d;
+  wire graphics_sel = da[31:12] == 20'h4000e;
   wire vga_cell_sel = da[31:14] == 18'h10004;
   wire rom_sel = da[31:16] == 16'h0000;
   wire ram_sel = da[31:16] == 16'h1000;
@@ -79,7 +91,10 @@ module ptrocos_soc #(
   wire [31:0] vga_cell_rdata, vga_reg_rdata, keyboard_rdata;
   wire [31:0] sd_rdata;
   wire vga_reg_ready;
-  wire data_ready = ddr_sel ? cpu_ddr_ready : vga_reg_sel ? vga_reg_ready : 1'b1;
+  wire graphics_ready,graphics_selected;
+  wire [31:0] graphics_rdata;
+  wire [3:0] text_red,text_green,text_blue,graphics_red,graphics_green,graphics_blue;
+  wire data_ready = ddr_sel ? cpu_ddr_ready : vga_reg_sel ? vga_reg_ready : graphics_sel ? graphics_ready : 1'b1;
   wire data_error = ddr_sel ? cpu_ddr_error :
       (!rom_sel && !ram_sel && !clint_sel && !mmio_sel) || (rom_sel && dwe);
   reg [2:0] read_region;
@@ -121,7 +136,7 @@ module ptrocos_soc #(
       .EDGE_INITIAL_TIMEOUT_TICKS(EDGE_INITIAL_TIMEOUT_TICKS),
       .LIVE_AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES)
   ) bus (
-      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel && !sd_sel), .we(dwe), .addr(da), .wdata(dw),
+      .clk(clk), .rst(rst), .valid(dv && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel && !sd_sel && !graphics_sel), .we(dwe), .addr(da), .wdata(dw),
       .sw(sw), .btn(btn), .capture_in(capture_in), .uart_rx_i(uart_rx),
       .retire(rv), .stall(es), .fwd_ex(ef),
       .fwd_wb(wf), .flush(fl), .branch(br), .branch_taken(bt), .crc(crc),
@@ -138,8 +153,20 @@ module ptrocos_soc #(
       .cell_wdata(dw),.cell_wstrb(dstrb),.cell_rdata(vga_cell_rdata),
       .reg_valid(dv && vga_reg_sel),.reg_we(dwe),.reg_addr(da),.reg_wdata(dw),
       .reg_wstrb(dstrb),.reg_ready(vga_reg_ready),.reg_rdata(vga_reg_rdata),
-      .red(vga_red),.green(vga_green),.blue(vga_blue),.hsync(vga_hsync),.vsync(vga_vsync)
+      .red(text_red),.green(text_green),.blue(text_blue),.hsync(vga_hsync),.vsync(vga_vsync)
   );
+  vga_ddr_framebuffer graphics (
+      .clk(clk),.rst(rst),.ui_clk(ui_clk),.ui_rst(ui_rst),.pixel_clk(pixel_clk),.pixel_rst(pixel_rst),
+      .reg_valid(dv && graphics_sel),.reg_we(dwe),.reg_addr(da),.reg_wdata(dw),.reg_wstrb(dstrb),
+      .reg_ready(graphics_ready),.reg_rdata(graphics_rdata),
+      .axi_araddr(scan_araddr),.axi_arlen(scan_arlen),.axi_arsize(scan_arsize),.axi_arburst(scan_arburst),
+      .axi_arvalid(scan_arvalid),.axi_arready(scan_arready),.axi_rdata(scan_rdata),.axi_rresp(scan_rresp),
+      .axi_rlast(scan_rlast),.axi_rvalid(scan_rvalid),.axi_rready(scan_rready),
+      .red(graphics_red),.green(graphics_green),.blue(graphics_blue),.graphics_selected(graphics_selected),.scan_x(),.scan_y()
+  );
+  assign vga_red=graphics_selected ? graphics_red : text_red;
+  assign vga_green=graphics_selected ? graphics_green : text_green;
+  assign vga_blue=graphics_selected ? graphics_blue : text_blue;
   ps2_keyboard keyboard (
       .clk(clk),.rst(rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
       .valid(dv && keyboard_sel),.we(dwe),.addr(da),.wdata(dw),.wstrb(dstrb),
@@ -186,7 +213,7 @@ module ptrocos_soc #(
         read_region <= 2'd1;
       else if (clint_sel || da[31:28] == 4'h4) begin
         read_region <= 2'd2;
-        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : sd_sel ? sd_rdata : mmio_r;
+        peripheral_rdata <= clint_sel ? clint_r : keyboard_sel ? keyboard_rdata : sd_sel ? sd_rdata : graphics_sel ? graphics_rdata : mmio_r;
       end else
         read_region <= 2'd0;
     end

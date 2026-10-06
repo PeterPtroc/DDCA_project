@@ -82,8 +82,14 @@
     {
       "order": 8,
       "name": "DDR framebuffer and VGA graphics",
-      "status": "pending",
-      "acceptance": "DMA scanout, FIFO underrun detection, safe frame swap and concurrent CPU access."
+      "status": "verified_in_unit_soc_simulation_routed_timing_and_uart_hardware",
+      "acceptance": "DMA scanout, FIFO underrun detection, safe frame swap and concurrent CPU access.",
+      "evidence": "ptrocos-graphics-validation.json",
+      "pending_acceptance": [
+        "Physical VGA graphics display: monitor not connected",
+        "Physical keyboard input remains deferred by user as recorded in stage 4"
+      ],
+      "blocks_next_stage": false
     },
     {
       "order": 9,

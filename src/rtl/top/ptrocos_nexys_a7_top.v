@@ -80,15 +80,25 @@ module ptrocos_nexys_a7_top #(
   wire awvalid,awready,wvalid,wready,wlast,bvalid,bready,arvalid,arready,rvalid,rready,rlast;
   wire [127:0] wdata,rdata;
   wire [15:0] wstrb;
+  wire [26:0] cpu_araddr,scan_araddr;
+  wire [7:0] cpu_arlen,scan_arlen;
+  wire [2:0] cpu_arsize,scan_arsize;
+  wire [1:0] cpu_arburst,scan_arburst,cpu_rresp,scan_rresp;
+  wire cpu_arvalid,cpu_arready,scan_arvalid,scan_arready,cpu_rlast,cpu_rvalid,cpu_rready,scan_rlast,scan_rvalid,scan_rready;
+  wire [127:0] cpu_rdata,scan_rdata;
   ptrocos_soc #(.CPU_PC_NEXT_STYLE(CPU_PC_NEXT_STYLE),.UART_DIVIDER(UART_DIVIDER),.IMEM_HEX(IMEM_HEX)) soc (
       .clk(cpu_clk),.rst(cpu_rst),.sw(sw),.btn(btn),.capture_in({7'd0,jb1}),
+      .ui_clk(ui_clk),.ui_rst(ui_rst),
       .pixel_clk(pixel_clk),.pixel_rst(pixel_rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
       .sd_miso(sd_miso),.sd_cd_n(sd_cd_n),.sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset),
       .vga_red(vga_red),.vga_green(vga_green),.vga_blue(vga_blue),.vga_hsync(vga_hsync),.vga_vsync(vga_vsync),
       .uart_rx(uart_rx),.uart_tx(uart_tx),.led(led),.seg_an(seg_an),.seg(seg),.seg_dp(seg_dp),
       .rgb0_r(rgb0_r),.rgb0_g(rgb0_g),.rgb0_b(rgb0_b),.rgb1_r(rgb1_r),.rgb1_g(rgb1_g),.rgb1_b(rgb1_b),
       .memory_valid(mv),.memory_we(mw),.memory_addr(ma),.memory_wdata(md),.memory_wstrb(ms),
-      .memory_ready(mr),.memory_rdata(rd),.memory_error(me),.trap_taken(),.trap_cause(),.firmware_result()
+      .memory_ready(mr),.memory_rdata(rd),.memory_error(me),.trap_taken(),.trap_cause(),.firmware_result(),
+      .scan_araddr(scan_araddr),.scan_arlen(scan_arlen),.scan_arsize(scan_arsize),.scan_arburst(scan_arburst),
+      .scan_arvalid(scan_arvalid),.scan_arready(scan_arready),.scan_rdata(scan_rdata),.scan_rresp(scan_rresp),
+      .scan_rlast(scan_rlast),.scan_rvalid(scan_rvalid),.scan_rready(scan_rready)
   );
   fixed_test_signals test_signals(.clk(cpu_clk),.rst(cpu_rst),.test_out(pmod_ja));
   word_bus_cdc ddr_cdc (
@@ -102,8 +112,19 @@ module ptrocos_nexys_a7_top #(
       .axi_awaddr(awaddr),.axi_awlen(awlen),.axi_awsize(awsize),.axi_awburst(awburst),.axi_awvalid(awvalid),.axi_awready(awready),
       .axi_wdata(wdata),.axi_wstrb(wstrb),.axi_wlast(wlast),.axi_wvalid(wvalid),.axi_wready(wready),
       .axi_bresp(bresp),.axi_bvalid(bvalid),.axi_bready(bready),
-      .axi_araddr(araddr),.axi_arlen(arlen),.axi_arsize(arsize),.axi_arburst(arburst),.axi_arvalid(arvalid),.axi_arready(arready),
-      .axi_rdata(rdata),.axi_rresp(rresp),.axi_rlast(rlast),.axi_rvalid(rvalid),.axi_rready(rready)
+      .axi_araddr(cpu_araddr),.axi_arlen(cpu_arlen),.axi_arsize(cpu_arsize),.axi_arburst(cpu_arburst),.axi_arvalid(cpu_arvalid),.axi_arready(cpu_arready),
+      .axi_rdata(cpu_rdata),.axi_rresp(cpu_rresp),.axi_rlast(cpu_rlast),.axi_rvalid(cpu_rvalid),.axi_rready(cpu_rready)
+  );
+  axi_read_arbiter read_bus (
+      .clk(ui_clk),.rst(ui_rst),
+      .cpu_araddr(cpu_araddr),.cpu_arlen(cpu_arlen),.cpu_arsize(cpu_arsize),.cpu_arburst(cpu_arburst),
+      .cpu_arvalid(cpu_arvalid),.cpu_arready(cpu_arready),.cpu_rdata(cpu_rdata),.cpu_rresp(cpu_rresp),
+      .cpu_rlast(cpu_rlast),.cpu_rvalid(cpu_rvalid),.cpu_rready(cpu_rready),
+      .video_araddr(scan_araddr),.video_arlen(scan_arlen),.video_arsize(scan_arsize),.video_arburst(scan_arburst),
+      .video_arvalid(scan_arvalid),.video_arready(scan_arready),.video_rdata(scan_rdata),.video_rresp(scan_rresp),
+      .video_rlast(scan_rlast),.video_rvalid(scan_rvalid),.video_rready(scan_rready),
+      .araddr(araddr),.arlen(arlen),.arsize(arsize),.arburst(arburst),.arvalid(arvalid),.arready(arready),
+      .rdata(rdata),.rresp(rresp),.rlast(rlast),.rvalid(rvalid),.rready(rready)
   );
   ptrocos_ddr2_mig memory (
       .ddr2_addr(ddr2_addr),.ddr2_ba(ddr2_ba),.ddr2_ras_n(ddr2_ras_n),.ddr2_cas_n(ddr2_cas_n),.ddr2_we_n(ddr2_we_n),

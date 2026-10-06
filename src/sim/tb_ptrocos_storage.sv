@@ -30,6 +30,9 @@ module tb_ptrocos_storage #(parameter PC_STYLE=0);
       .corrupt_next_read(corrupt),.miso(sd_miso),.commands(sd_commands),.reads(sd_reads),.writes(sd_writes),.power_cycles(power_cycles)
   );
   ptrocos_soc #(.CPU_PC_NEXT_STYLE(PC_STYLE),.UART_DIVIDER(DIVIDER),.IMEM_HEX("build/hex/ptrocos_storage.hex")) dut (
+      .ui_clk(ui_clk),.ui_rst(rst),.scan_araddr(),.scan_arlen(),.scan_arsize(),.scan_arburst(),
+      .scan_arvalid(),.scan_arready(1'b0),.scan_rdata(128'd0),.scan_rresp(2'd0),
+      .scan_rlast(1'b0),.scan_rvalid(1'b0),.scan_rready(),
       .clk(clk),.rst(rst),.sw(16'd0),.btn(5'd0),.capture_in(8'd0),.uart_rx(uart_rx),.uart_tx(uart_tx),
       .sd_miso(sd_miso),.sd_cd_n(!attached),.sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset),
       .pixel_clk(pclk),.pixel_rst(rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),

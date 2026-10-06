@@ -40,6 +40,55 @@ foreach pattern {
         error "Missing mailbox constraint endpoint: $pattern"
     }
 }
+set graphics_mailboxes [list {.*graphics/register_cdc} {.*graphics/frame_cdc}]
+for {set bank 0} {$bank<4} {incr bank} {
+    lappend graphics_mailboxes [format {.*graphics/row_cdc\[%d\]\.mailbox} $bank]
+}
+foreach mailbox $graphics_mailboxes {
+    foreach suffix {
+        {request_sync_reg\[0\]$} {completion_sync_reg\[0\]$}
+        {payload_(we|addr|data|strobes)_reg(\[[0-9]+\])?(_replica(_[0-9]+)?)?$}
+        {target_(we|addr|wdata|wstrb)_reg(\[[0-9]+\])?(_replica(_[0-9]+)?)?$}
+        {response_(data|error)_reg(\[[0-9]+\])?(_replica(_[0-9]+)?)?$}
+        {source_(rdata|error)_reg(\[[0-9]+\])?(_replica(_[0-9]+)?)?$}
+    } {
+        if {![llength [get_cells -hier -quiet -regexp "$mailbox/$suffix"]]} {
+            error "Missing graphics constraint endpoint: $mailbox/$suffix"
+        }
+    }
+    foreach {from_pattern to_pattern} {
+        {payload_(we|addr|data|strobes)} {target_(we|addr|wdata|wstrb)}
+        {response_(data|error)} {source_(rdata|error)}
+    } {
+        set from [get_cells -hier -quiet -regexp [format {%s/%s_reg(\[[0-9]+\])?(_replica(_[0-9]+)?)?$} $mailbox $from_pattern]]
+        set to [get_cells -hier -quiet -regexp [format {%s/%s_reg(\[[0-9]+\])?(_replica(_[0-9]+)?)?$} $mailbox $to_pattern]]
+        set paths [get_timing_paths -quiet -from $from -to $to -delay_type max -max_paths 1000]
+        if {![llength $paths]} {error "No timed graphics payload paths: $mailbox/$from_pattern"}
+        foreach path $paths {
+            if {[get_property EXCEPTION $path] ne "MaxDelay Path 10.000ns -datapath_only"} {
+                error "Unbounded graphics CDC payload: [get_property NAME $path]"
+            }
+        }
+        puts "PTROCOS GRAPHICS CDC COVERAGE: $mailbox/$from_pattern [llength $paths] timed endpoints, 10ns datapath bounds"
+    }
+    foreach sync {request completion} {
+        set first [get_cells -hier -quiet -regexp [format {%s/%s_sync_reg\[0\]$} $mailbox $sync]]
+        set first_d [get_pins -of_objects $first -filter {REF_PIN_NAME == D}]
+        set toggle_paths [get_timing_paths -quiet -to $first_d -delay_type max -max_paths 1000]
+        if {![llength $toggle_paths]} {error "Missing clocked graphics toggle path: $mailbox/$sync"}
+        foreach path $toggle_paths {
+            if {[get_property EXCEPTION $path] ne "False Path"} {
+                error "Uncut graphics toggle synchronizer: $mailbox/$sync"
+            }
+        }
+    }
+}
+if {[llength [get_cells -hier -quiet -regexp {.*graphics/blank_sync_reg\[0\]$}]]!=1} {
+    error "Missing graphics swap-window constraint endpoint"
+}
+if {[llength [get_cells -hier -quiet -regexp {.*soc/sd/(miso|detect)_sync_reg\[0\]$}]]!=2} {
+    error "Missing SD input synchronizers"
+}
 set preliminary [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $preliminary] && [get_property SLACK $preliminary]>=-0.500 &&
     [get_property SLACK $preliminary]<0.100} {

@@ -11,6 +11,6 @@ set_property -dict {PACKAGE_PIN E2 IOSTANDARD LVCMOS33 SLEW SLOW} [get_ports sd_
 # External mode-0 setup/hold is checked by SPI edge simulation and real-card CRC;
 # no synchronous input/output-delay contract is asserted for these ports.
 set sd_first [get_cells -hier -regexp {.*soc/sd/(miso|detect)_sync_reg\[0\]$}]
-if {[llength $sd_first]!=2} {error "Missing SD input synchronizers: $sd_first"}
+# Endpoint existence is checked in finalize_ptrocos_timing.tcl (normal Tcl).
 set_false_path -from [get_ports {sd_miso sd_cd_n}] -to [get_pins -of_objects $sd_first -filter {REF_PIN_NAME == D}]
 set_false_path -to [get_ports {sd_sck sd_mosi sd_cs_n sd_reset}]

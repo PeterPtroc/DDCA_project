@@ -1,4 +1,9 @@
 #include <stddef.h>
+int strcmp(const char *left,const char *right)
+{
+    while(*left && *left==*right) {++left;++right;}
+    return (int)(unsigned char)*left-(int)(unsigned char)*right;
+}
 size_t strlen(const char *text)
 {
     size_t length=0;

@@ -22,6 +22,9 @@ module tb_ptrocos_text #(parameter PC_STYLE=0);
   reg held=0;
   reg [68:0] held_payload;
   ptrocos_soc #(.CPU_PC_NEXT_STYLE(PC_STYLE),.UART_DIVIDER(DIVIDER),.IMEM_HEX("build/hex/ptrocos_text.hex")) dut (
+      .ui_clk(ui_clk),.ui_rst(rst),.scan_araddr(),.scan_arlen(),.scan_arsize(),.scan_arburst(),
+      .scan_arvalid(),.scan_arready(1'b0),.scan_rdata(128'd0),.scan_rresp(2'd0),
+      .scan_rlast(1'b0),.scan_rvalid(1'b0),.scan_rready(),
       .clk(clk),.rst(rst),.sw(16'd0),.btn(5'd0),.capture_in(8'd0),.uart_rx(uart_rx),.uart_tx(uart_tx),
       .sd_miso(1'b1),.sd_cd_n(1'b1),
       .pixel_clk(pclk),.pixel_rst(rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
