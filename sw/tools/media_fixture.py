@@ -11,6 +11,9 @@ class MediaImage(Image):
         top,self.top_pixels=bmp(3,5,32,True,108)
         self.files={'IMAGE.BMP':picture,'SOUND.WAV':sound,'SHORT.WAV':short,
                     'TOP.BMP':top,'BAD.BMP':picture[:-1],'BAD.WAV':sound[:-1]}
+        if kind==64:
+            for name,data in self.files.items():self.add_exfat_file(name,data)
+            return
         root=bytearray(self.initial[self.rootsector]);cluster=100
         for index,(name,data) in enumerate(self.files.items(),2):
             # Fragment every stream; tests must traverse real FAT links.

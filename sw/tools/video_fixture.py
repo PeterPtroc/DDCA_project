@@ -19,6 +19,9 @@ class VideoImage(Image):
         sound,self.pictures,self.samples=video(frames,fps)
         silent,self.silent_pictures,_=video(5,30,0)
         self.files={'CLIP.PTV':sound,'SILENT.PTV':silent,'BAD.PTV':sound[:-1]}
+        if kind==64:
+            for name,data in self.files.items():self.add_exfat_file(name,data)
+            return
         root=bytearray(self.initial[self.rootsector]);cluster=100
         for index,(name,data) in enumerate(self.files.items(),2):
             count=(len(data)+511)//512;chain=list(range(cluster,cluster+2*count,2));cluster+=2*count

@@ -28,11 +28,22 @@ static int same(const char *a,const char *b)
     while(*a && *a==*b) {++a;++b;}
     return *a==*b;
 }
-static void number(struct output *o,uint32_t value)
+static void number(struct output *o,uint64_t value)
 {
-    char text[11];unsigned pos=10;text[10]=0;
+    char text[21];unsigned pos=20;text[20]=0;
     do {text[--pos]=(char)('0'+value%10U);value/=10U;} while(value);
     put(o,&text[pos]);
+}
+static int file_offset(const char *text,FSIZE_t *value)
+{
+    FSIZE_t result=0;
+    if(!*text) return 0;
+    while(*text) {
+        unsigned digit=(unsigned)(*text++-'0');
+        if(digit>9 || result>(UINT64_MAX-digit)/10U) return 0;
+        result=result*10U+digit;
+    }
+    *value=result;return 1;
 }
 static void hex(struct output *o,uint32_t value)
 {
@@ -70,9 +81,12 @@ int ptrocos_storage_elf(const char *path,struct elf_image *image,void (*write)(v
         ptrocos_sd_cancel_source(cancel);
         stream.error=f_open(&stream.file,path,FA_READ);
         if(stream.error==FR_OK) {
-            struct elf_source source={(uint32_t)f_size(&stream.file),elf_read,elf_cancelled,&stream};
-            struct elf_sink sink={ptrocos_elf_memory_write,ptrocos_elf_progress,NULL};
-            result=ptrocos_elf_load(&source,&sink,image);
+            if(f_size(&stream.file)>UINT32_MAX) result=ELF_RANGE;
+            else {
+                struct elf_source source={(uint32_t)f_size(&stream.file),elf_read,elf_cancelled,&stream};
+                struct elf_sink sink={ptrocos_elf_memory_write,ptrocos_elf_progress,NULL};
+                result=ptrocos_elf_load(&source,&sink,image);
+            }
             FRESULT closed=f_close(&stream.file);
             if(stream.error==FR_OK) stream.error=closed;
         }
@@ -106,7 +120,7 @@ static void check_file(struct output *o,const char *path)
     if(!mounted) {put(o,"mount the SD card first\r\n");return;}
     FIL file;FRESULT result=f_open(&file,path,FA_READ);
     if(result!=FR_OK) {error(o,result);return;}
-    uint8_t buffer[512];uint32_t total=0;uint16_t crc=0xffffU;
+    uint8_t buffer[512];FSIZE_t total=0;uint16_t crc=0xffffU;
     while(!*o->cancel) {
         UINT count;result=f_read(&file,buffer,sizeof(buffer),&count);
         if(result!=FR_OK || !count) break;
@@ -122,7 +136,7 @@ static void check_file(struct output *o,const char *path)
 }
 static void file_info(struct output *o,const FILINFO *info)
 {
-    put(o,info->fattrib&AM_DIR ? "d " : "f ");number(o,(uint32_t)info->fsize);put(o," ");
+    put(o,info->fattrib&AM_DIR ? "d " : "f ");number(o,info->fsize);put(o," ");
     // Names remain UTF-8. Escape terminal controls without changing path parsing.
     static const char digits[]="0123456789abcdef";
     for(const uint8_t *p=(const uint8_t *)info->fname;*p && !*o->cancel;p++) {
@@ -168,7 +182,7 @@ static void cat(struct output *o,const char *path)
     if(result==FR_OK) result=closed;
     if(!*o->cancel && result!=FR_OK) error(o,result);
 }
-static void hexdump(struct output *o,const char *path,uint32_t offset,uint32_t remaining)
+static void hexdump(struct output *o,const char *path,FSIZE_t offset,uint32_t remaining)
 {
     if(!mounted) {put(o,"mount the SD card first\r\n");return;}
     FIL file;FRESULT result=f_open(&file,path,FA_READ);
@@ -176,11 +190,11 @@ static void hexdump(struct output *o,const char *path,uint32_t offset,uint32_t r
     result=f_lseek(&file,offset);
     static const char digits[]="0123456789abcdef";
     while(result==FR_OK && remaining && !*o->cancel) {
-        uint8_t buffer[16];char row[81];UINT count;unsigned pos=0;
-        uint32_t address=(uint32_t)f_tell(&file);
+        uint8_t buffer[16];char row[89];UINT count;unsigned pos=0;
+        FSIZE_t address=f_tell(&file);unsigned width=address>UINT32_MAX ? 16 : 8;
         result=f_read(&file,buffer,remaining<16 ? (UINT)remaining : 16,&count);
         if(result!=FR_OK || !count) break;
-        for(unsigned i=0;i<8;i++) row[pos++]=digits[(address>>(28U-4U*i))&15U];
+        for(unsigned i=0;i<width;i++) row[pos++]=digits[(address>>(4U*(width-1U-i)))&15U];
         row[pos++]=' ';row[pos++]=' ';
         for(unsigned i=0;i<16;i++) {
             row[pos++]=i<count ? digits[buffer[i]>>4] : ' ';
@@ -211,10 +225,10 @@ int ptrocos_storage_command(unsigned argc,char **argv,void (*write)(void *,const
 #endif
         0;
     if(!command) return 0;
-    struct output out={write,write_byte,context,cancel};uint32_t offset=0,count=256;
+    struct output out={write,write_byte,context,cancel};FSIZE_t offset=0;uint32_t count=256;
     if((command>=8 && argc!=2) || (command<=3 && argc!=1) || ((command==4 || command==6) && argc!=2) ||
        (command==5 && argc>2) || (command==7 && (argc<2 || argc>4 ||
-       (argc>=3 && !shell_u32(argv[2],&offset)) || (argc==4 && !shell_u32(argv[3],&count)) || count>4096))) {
+       (argc>=3 && !file_offset(argv[2],&offset)) || (argc==4 && !shell_u32(argv[3],&count)) || count>4096))) {
         put(&out,command==10 ? "usage: play <path>\r\n" : command>=8 ? "usage: bmp <path> | wav <path>\r\n" : command==5 ? "usage: ls [path]\r\n" : command==6 ? "usage: cat <path>\r\n" :
             command==7 ? "usage: hexdump <path> [offset] [count 0..4096] (decimal)\r\n" :
             "usage: mount | umount | sdinfo | fscheck <path>\r\n");return 1;

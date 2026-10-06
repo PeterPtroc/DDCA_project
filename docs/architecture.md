@@ -1,70 +1,34 @@
 # 系统架构
 
-## 数据通路
+本页描述生产示波器 `nexys_a7_top` / `rv32_core`。PtrocOS 使用独立的 RV32IM CPU、SoC 与顶层，扩展接口见 [开发说明](ptrocos-development.md)。
+
+## 数据通路与 CPU
 
 ```text
-JB1 异步输入
-        |
-   两级触发器同步器
-        |
-        +---- 实时波形 ------ 16 位采样帧 ------ LED[15:0]
-        +---- 边沿测量 ------ 周期/高电平/状态
-        +---- 深度采集 ------ 4096×1 采样窗口
-                                           |
-                                           v
-六级流水 RV32I/Zicsr CPU <---- MMIO --------+---- 八位数码管
-        |                                  +---- UART
-        +---- M-mode / precise trap / CLINT
-        +---- 数据前递 / 加载-使用停顿 / 分支冲刷
-        +---- CRC16.B / 指令提交跟踪 / 性能计数器
-
-8 路固定测试计数器 ----------------------- JA1/2/3/4/7/8/9/10
+JB1 → 两级同步器 ┬→ live_scope → 16 位 LED 帧
+                ├→ edge_meter_scope → 周期 / 高电平 / 状态
+                └→ scope_capture → 4096×1 采集窗口 → MMIO → CPU
+JA1/2/3/4/7/8/9/10 ← 独立固定测试计数器
+CPU → 八位数码管 / UART
 ```
 
-输入只经过一组 `input_sync`，三个模块共享同一个同步结果。实时数据通路不等待 CPU：`live_scope` 发布 LED 帧，`edge_meter_scope` 完成边沿计时并保留原始的 `period_ticks` 和 `high_ticks`，`scope_capture` 管理环形采样窗口。CPU 运行 FreeRTOS 应用，由测量、UI、UART 和采集四个任务处理示波器配置、按钮事件、数码管内容、UART 通信和深度采集传输。CPU 根据一致性快照计算 `low_ticks` 和 `frequency_hz`，再将队列中的快照用于显示和传输。JA 固定测试输出独立于 CPU 和 MMIO；复位释放后，8 路信号同时持续工作。
+三个采样模块共享同一同步输入，独立于 CPU 工作。CPU 计算 `low_ticks` 和 `frequency_hz`，由 FreeRTOS 测量、UI、UART、采集四任务处理配置、显示和传输。
 
-## CPU
+`rv32_core` 为六级流水 RV32I + Zicsr：IF、ID、EX、数据请求、数据响应、WB。支持完整字节/半字/字访存、FENCE/FENCE.I、机器态 CSR、ECALL/EBREAK/MRET、`CRC16.B`、提交跟踪与性能计数器。前递选择在 ID 计算；JAL 在 ID 重定向，JALR/条件分支在 EX 重定向。加载结果在进入 WB 前选择，WB 前递直接使用寄存器输出；对齐检查使用专用有效地址路径。
 
-`rv32_core` 是六级流水 `RV32I + Zicsr` 实现，流水级为 IF、ID、EX、数据请求、数据响应和 WB。除多级数据前递、加载-使用互锁、分支冲刷、自定义 `CRC16.B`、提交跟踪和性能事件外，还实现了机器态 CSR、`ECALL/EBREAK/MRET`、宽度访存与精确 trap。异常信息沿流水线传播到 WB，寄存器和 CSR 在 WB 更新。访存请求在数据请求级生效，读后清零等 MMIO 读取也属于副作用；若中断到来时响应级仍有已发出的访存，CPU 停住年轻指令并禁止新请求，先将这次访存推进到 WB 退休，再进入中断。已采样的中断请求与原因会保留到该边界，`mepc` 指向最后退休指令的下一 PC，返回后不会重放已生效访存。同步异常、MRET 和 FENCE.I 也阻止年轻访存越过其边界。无寄存器依赖的 JAL 在 ID 阶段提前重定向，JALR 和条件分支仍在 EX 阶段重定向。前递选择在 ID 阶段提前计算，避免把寄存器号比较器放在 EX 到 PC/ALU 的关键路径上。
+寄存器、CSR 与异常在 WB 提交，访存副作用在请求级发生。中断遇到已发出的访存时，阻止年轻指令与新请求，先让该访存退休，再进入中断；锁存中断原因，`mepc` 指向最后退休指令的下一 PC，避免返回后重复存储或读后清零。同步异常、MRET、FENCE.I 同样阻止年轻访存越过边界。
 
-写回数据在进入 WB 寄存器之前完成加载结果与 ALU 结果选择，WB 前递与寄存器堆旁路直接使用该寄存器的输出。访存对齐检查与异常地址使用专用的 `rs1 + immediate` 路径，避免经过移位、比较和 ALU 结果选择逻辑。异常地址由指令类型提前选择，仅在异常有效时被提交；这些调整不增加流水级或访存延迟。
+CSR：`mstatus/misa/mie/mtvec/mscratch/mepc/mcause/mtval/mip/mhartid/mcycle/minstret`，计数器含高半 CSR。trap 覆盖非法指令、M-mode ECALL、EBREAK、指令/load/store 未对齐及 MSI/MTI。仅支持 M-mode，无 RV32M、S-mode、MMU、PMP 或 PLIC。
 
-实现的 CSR 为 `mstatus/misa/mie/mtvec/mscratch/mepc/mcause/mtval/mip/mhartid/mcycle/minstret`（含两个 64 位计数器的高半 CSR）。异常覆盖非法指令、M-mode ECALL、EBREAK、指令地址未对齐和 load/store 未对齐；异步中断覆盖 MSI 和 MTI。处理器始终运行在 M-mode，不包含 S-mode、MMU、PMP、PLIC 或 RV32M。
-
-指令和数据存储器各为 64 KiB。取指端口在下降沿采样；EX 先寄存有效地址，再由数据请求级在上升沿访问同步 BRAM/MMIO，响应级保留对应元数据，下一上升沿才进入 WB。这样地址生成、外设译码和加载写回各自获得完整的 10 ns 周期。ROM 的第二只读端口映射到数据总线 `0x00000000..0x0000ffff`，供 C 运行时复制 `.data` 并访问 `.rodata`。RAM 位于 `0x10000000..0x1000ffff`，栈顶为 `0x10010000` 且保持 16 字节对齐。
-
-## Machine timer 与 FreeRTOS
-
-CLINT 使用标准地址：`msip=0x02000000`、`mtimecmp=0x02004000`、`mtime=0x0200bff8`。`mip.MTIP/MSIP` 直接反映外设电平；`mie` 与 `mstatus.MIE` 在提交边界共同决定是否进入中断。
-
-`sw/freertos` 使用 GCC `-march=rv32i_zicsr -mabi=ilp32` 和官方 FreeRTOS Kernel V11.3.1 RISC-V port。启动代码设置 `gp/sp`、复制 `.data`、清零 `.bss`、安装 `mtvec` 后进入 `main()`。应用拆分为 `measurement_task`、`ui_task`、`uart_task` 和 `capture_task`：测量快照通过单元素覆盖队列发布，SINGLE/导出请求通过任务通知投递，UART 互斥量保护 shell、遥测和 CAP2 传输。采集任务完成 4096 点打包并用 `CRC16.B` 逐字节计算校验；1 kHz tick 由 CLINT MTI 驱动。
-
-UART 硬件使用 1024 字节 RX FIFO，固件每次被调度后连续取数，排空后才延迟 1 ms。状态寄存器 `0x40001004` 的 bit0 为 TX 就绪、bit1 为 RX 非空、bit2 为粘滞溢出标志、bit3 为 RX 满；向 bit2 写 1 清除溢出。FIFO 满且无同时出队时丢弃新字节，保留队列中已有字节的顺序。
-
-采集任务在等待期间每 1 ms 检查完成状态和任务通知。新的 SINGLE 会重新采集，已有导出请求跟随新采集；重复导出通知合并为一个待导出请求。`c` 取消并清除采集和待导出请求，返回 `ERR2 CANCELLED\n`。取消与其他通知同时到达时，取消优先。等待期限为 1000 ms 加上 `ceil(4096 × active_sample_div / 100000)` ms，超时停止采集并返回 `ERR2 TIMEOUT\n`，后续请求可重新启动。UART 互斥量保证错误行与 CAP2 帧不会交错；整帧发送完成后才处理新采集或取消。
-
-当前配置包含任务、队列、互斥量、计数信号量、动态分配和任务通知；软件定时器、静态分配及部分任务管理 API 被关闭，事件组和流缓冲区源码未收录。测试结论限于该配置与当前四任务应用。
-
-## 实时波形与深度采集
-
-实时波形模块保存一段短采样历史。`AUTO`、`NORMAL` 和 `SINGLE` 模式将所选边沿对齐到 LED7；`FREE` 模式每 16 个样本发布一帧。`HOLD` 阻止新帧发布，`AUTO` 在长时间没有触发时强制刷新。`sample_div` 控制时基。
-
-深度采集模块使用 4096×1 环形窗口。触发前保留 2048 点，触发后收集剩余样本，最后按时间顺序映射到 `0x40010000..0x40013fff`，触发位置固定为第 2048 点。窗口每个 32 位读取值的 bit0 为样本，其余位为零。深度与预触发点数固定，`0x40004010` 和 `0x40004020` 分别只读返回 4096 和 2048。时基仅通过 `0x4000400c` 配置。边沿检测在 100 MHz 时钟域中进行，写入采样窗口的间隔仍由 `sample_div` 决定。
-
-每次写控制寄存器启动采集时，硬件锁存时基和触发边沿。采集中或完成后修改配置只影响下一次采集；本次锁存的边沿和分频分别通过只读寄存器 `0x40004024`、`0x40004028` 提供。控制寄存器的清除/重启优先于同拍采样与触发，防止取消后又被置为完成。
-
-## 边沿测量
-
-边沿测量硬件输出 `period_ticks`、`high_ticks`、`edge_age`、`valid` 和 `signal_present`。每个时钟计数为 10 ns，也可选择对最近四个周期求平均。超过动态超时时间仍未检测到有效边沿时，硬件会清除有效状态，避免软件继续使用过期读数。固件读取两次 `period_ticks`，只有两次结果一致时才更新缓存，并计算 `low_ticks = max(period_ticks - high_ticks, 0)` 和 `frequency_hz = floor(100000000 / period_ticks)`。32 位恢复除法因此由 CPU 执行，不再位于 FPGA 时序路径中；`MEA2` 和 CAP2 的协议字段保持不变。
+取指 BRAM 在下降沿采样；EX 寄存地址后，请求级在上升沿访问同步 BRAM/MMIO，响应级保留元数据，再进入 WB。ROM/RAM 各 64 KiB，ROM 数据只读端口供 `.data` 复制及 `.rodata` 访问；RAM 栈顶 `0x10010000`，16 字节对齐。
 
 ## MMIO
 
-| 基地址 | 外设 |
+| 地址 | 功能 |
 | --- | --- |
-| `0x02000000` | CLINT `msip` |
-| `0x02004000` | CLINT `mtimecmp` |
-| `0x0200BFF8` | CLINT `mtime` |
-| `0x10000000` | 64 KiB 数据 RAM |
+| `0x00000000..0x0000ffff` | ROM 数据只读端口 |
+| `0x10000000..0x1000ffff` | 数据 RAM |
+| `0x02000000` / `0x02004000` / `0x0200bff8` | CLINT msip / mtimecmp / mtime |
 | `0x40000000` | GPIO / 固件测试结果 |
 | `0x40001000` | UART |
 | `0x40002000` | 64 位计时器 |
@@ -74,11 +38,31 @@ UART 硬件使用 1024 字节 RX FIFO，固件每次被调度后连续取数，�
 | `0x40007000` | 按钮/开关 |
 | `0x40008000` | 八位数码管 |
 | `0x40009000` | 边沿测量 |
-| `0x40010000` | 4096 点采样窗口 |
+| `0x40010000..0x40013fff` | 4096 点采样窗口，每字 bit0 为样本 |
+
+`mip.MTIP/MSIP` 反映外设电平，`mie` 与 `mstatus.MIE` 在提交边界决定中断。UART RX FIFO 为 1024 字节；STATUS `0x40001004` 的 bit0..3 为 TX 就绪、RX 非空、粘滞溢出、RX 满。写 bit2=1 清溢出；满且无同时出队时丢弃新字节。
+
+## 采样与测量
+
+实时波形在 AUTO/NORMAL/SINGLE 下把所选边沿对齐 LED7；FREE 每 16 点发布一帧，HOLD 停止发布，AUTO 无触发时强制刷新。时基由 `sample_div` 控制。
+
+深度采集固定 4096 点、触发位置 2048，触发前用环形窗口保留历史，完成后按时间顺序读取。`0x40004010` / `0x40004020` 只读返回深度/预触发点数；`0x4000400c` 配置时基。边沿检测每 10 ns 进行，采样写入仍按分频间隔。
+
+启动时锁存触发边沿与时基，分别从 `0x40004024` / `0x40004028` 读取；随后配置只影响下一次采集。清除/重启优先于同拍采样与触发，防止取消后重新置完成。
+
+边沿测量给出 `period_ticks/high_ticks/edge_age/valid/signal_present`，可选四周期平均，动态无信号超时会清有效状态。固件两次读取周期且一致后更新快照，计算 `low=max(period-high,0)`、`frequency=floor(100000000/period)`；除法由 CPU 执行。
+
+## FreeRTOS 与采集控制
+
+GCC 目标为 `rv32i_zicsr/ilp32`，使用官方 FreeRTOS 11.3.1 RISC-V port，CLINT MTI 驱动 1 kHz tick。启动代码设置 gp/sp、复制 `.data`、清 BSS 并安装 mtvec。测量快照用单元素覆盖队列，采集/导出用任务通知，UART mutex 防止 shell、遥测、错误行与 CAP2 交错。
+
+采集任务每 1 ms 检查完成与通知：新的 SINGLE 重启采集，已有导出请求跟随；重复导出合并。`c` 取消采集及待导出，优先于同时到达的其他请求。期限为 `1000 + ceil(4096 × active_sample_div / 100000)` ms；超时停止采集。CAP2 整帧发送期间保持 UART 锁，发送完再处理通知。
+
+当前裁剪配置启用任务、队列、互斥量、计数信号量、动态分配和通知；软件定时器、静态分配及部分任务 API 关闭，未收录事件组/流缓冲区实现。验收范围限于当前四任务应用。
 
 ## CAP2
 
-UART 深度采集包包含 26 字节小端头、512 字节位打包样本和 2 字节 CRC16：
+小端包：26 字节头 + 512 字节位打包样本 + 2 字节 CRC16。
 
 ```text
 magic[4] version[1] flags[1] count[2] sample_div[4]
@@ -86,25 +70,10 @@ trigger_index[2] period[4] high[4] frequency[4]
 packed_samples[512] crc16[2]
 ```
 
-FreeRTOS 固件在启动采集时保存测量快照，CAP2 的 `period`、`high` 和 `frequency` 来自这份快照；`flags` 和 `sample_div` 来自硬件为该次采集锁存的寄存器。修改当前开关和时基不会给旧样本重新标注。`low` 不单独写入 CAP2，客户端按 `period - high` 计算，结果下限为 0。
+period/high/frequency 来自启动时测量快照，flags/sample_div 来自该次硬件锁存参数，修改开关不会重新标注旧样本。low 由客户端计算。CRC 初值 `0xffff`、多项式 `0xa001`，覆盖头与样本，固件逐字节执行 `CRC16.B`。
 
-CRC 使用初值 `0xffff` 和多项式 `0xa001`，校验范围包括包头和数据区；固件逐字节执行 `CRC16.B`。
+## 时序与位流门槛
 
-## 顶层与时序
+GUI/批处理共用 `configure_timing.tcl`：ExtraPostPlacementOpt、AggressiveExplore；布线 WNS 在 −0.500～+0.100 ns 且未达标时，仅重试一次物理优化与 NoTimingRelaxation 布线。`finalize_timing.tcl` 保存报告/检查点并要求 **WNS ≥ +0.100 ns、WHS ≥ 0、无 Error/Critical Warning DRC**，生成位流前复查。
 
-`nexys_a7_top` 只暴露 100 MHz 时钟、复位、开关、按钮、16 个 LED、两颗 RGB LED、八位数码管、UART、8 位 `pmod_ja` 固定输出和唯一的测量输入 JB1。用于生成位流的工程显式列出所有 RTL 源文件。
-
-GUI 与批处理共用 `scripts/configure_timing.tcl` 的实现设置：`ExtraPostPlacementOpt` 布局、`AggressiveExplore` 物理优化及布线。如果布线后 WNS 在 −0.500 ns 至 +0.100 ns 之间且未达到目标，执行一次物理优化与 `NoTimingRelaxation` 布线重试。`finalize_timing.tcl` 保存最终报告和检查点，再检查 WNS ≥ +0.100 ns、保持裕量 ≥ 0 ns，以及无 `Error` / `Critical Warning` 级 DRC。生成位流前再次检查时序门槛，避免从不达标的布线结果继续生成位流。TNS 是负裕量总和，全部建立路径通过时为 0 ns。
-
-时钟仍为 100 MHz，取指 BRAM 的半周期路径仍按 5 ns 分析。构建没有增加内部假路径或多周期例外。验收结果见 `build/vivado/reports/timing_summary_routed.rpt`，GUI 和批处理均将通过检查的位流发布到 `build/vivado/rv32_realtime_scope.bit`。余量要求适用于当前 RTL、固件、器件与工具版本；修改这些输入后需要重新实现。
-
-2026-10-05 使用 Vivado 2024.2、`xc7a100tcsg324-1` 和现有 FreeRTOS 固件验证，默认 `CPU_PC_NEXT_STYLE=0`：
-
-| 实现 | WNS (ns) | TNS (ns) | WHS (ns) |
-| --- | ---: | ---: | ---: |
-| 优化前 GUI 工程 | −0.110 | −0.110 | +0.064 |
-| 优化前批处理 | +0.128 | 0.000 | +0.064 |
-| 优化后直接综合/实现验证 | +0.315 | 0.000 | +0.061 |
-| 优化后统一工程流程干净重建（2 次） | +0.315 | 0.000 | +0.061 |
-
-三次优化后实现均未触发布线重试。完整 `scripts/test.ps1` 回归通过，覆盖指令提交差分、宽度访存与异常、80 组精确中断、FreeRTOS、UART 和示波器功能。验收脚本在独立检查点会话中也通过了反向验证：人为加严时钟不确定度后，+0.065 ns 的不足裕量、负建立裕量与负保持裕量均被拒绝；这些临时约束未写回工程。报告、回归日志和输入 SHA-256 清单位于 `build/timing_closure/`。
+CPU 为 100 MHz，下降沿取指半周期路径按 5 ns 分析，无内部假路径或多周期例外。通过的位流发布到 `build/vivado/rv32_realtime_scope.bit`，报告在 `build/vivado/reports/`。2026-10-05 两次干净构建为 WNS +0.315 ns、WHS +0.061 ns，历史报告与输入哈希位于 `build/timing_closure/`。修改 RTL、固件或工具后需重新实现，历史数值不能代替新构建验收。

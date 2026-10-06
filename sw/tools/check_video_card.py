@@ -19,7 +19,7 @@ def main():
         *[str(ROOT/s) for s in sources],'-o',str(out/'video_card.dll'),'-lwinpthread'],check=True)
     dll_directory=os.add_dll_directory(str(Path(shutil.which('gcc.exe')).parent));lib=C.CDLL(str(out/'video_card.dll'))
     lib.ff_native_mount.argtypes=[C.POINTER(Transport)]
-    lib.ff_native_read.argtypes=[C.c_char_p,C.c_uint32,C.c_void_p,C.c_uint,C.POINTER(C.c_uint)]
+    lib.ff_native_read.argtypes=[C.c_char_p,C.c_uint64,C.c_void_p,C.c_uint,C.POINTER(C.c_uint)]
     lib.ff_native_list.argtypes=[C.c_char_p,C.c_void_p,C.c_uint]
     raw=a.image.read_bytes();assert hashlib.sha256(raw).hexdigest()==meta['sha256'] and len(raw)==33554432
     model=Model(2,True);model.sectors=len(raw)//512

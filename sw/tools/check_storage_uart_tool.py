@@ -31,7 +31,7 @@ class Serial:
         text=self.tx[:-1].decode();self.tx.clear()
         if text=='uname': body=b'PtrocOS RV32IM\r\n'
         elif text=='help': body=b'mount umount sdinfo fscheck ls cat hexdump\r\n'
-        elif text=='mount': body=b'FAT mounted type=2 sectors=32768\r\n'
+        elif text=='mount': body=b'FAT mounted type=4 sectors=32768\r\n'
         elif text=='umount': body=b'FAT unmounted\r\n'
         elif text=='sdinfo': body=b'SD ready=1 writes=0 error=ok\r\n'
         elif text.startswith('fscheck '): body=f'FILE PASS bytes={len(self.data)} crc={tool.crc16(self.data):08x}\r\n'.encode()

@@ -37,6 +37,10 @@ static void number(void (*write)(void *,const char *),void *context,const char *
 FRESULT ptrocos_media_file(FIL *file,unsigned kind,void (*write)(void *,const char *),
     void *context,const volatile uint32_t *cancel)
 {
+    // Decoders use 32-bit container offsets; reject oversized exFAT files.
+    if(f_size(file)>UINT32_MAX) {
+        write(context,"unsupported or malformed media file\r\n");return FR_OK;
+    }
     struct stream stream={file,FR_OK,cancel};
     struct media_source source={(uint32_t)f_size(file),read_at,cancelled,&stream};int result;
 #ifdef PTROCOS_VIDEO

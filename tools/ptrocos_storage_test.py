@@ -69,7 +69,7 @@ def main():
             if args.files and b'fscheck ls cat hexdump' not in info: raise AssertionError('File command firmware required')
             mounted=command('mount',b'FAT mounted type=')
             match=re.search(rb'FAT mounted type=(\d+) sectors=(\d+)',mounted)
-            if not match or int(match[1]) not in (1,2,3) or int(match[2])<64: raise AssertionError('Invalid FAT/card geometry')
+            if not match or int(match[1]) not in (1,2,3,4) or int(match[2])<64: raise AssertionError('Invalid FAT/card geometry')
             record['fat_type'],record['sectors']=map(int,match.groups());record['mount_verified']=True
             status=command('sdinfo',b' error=ok\r\n')
             if b' ready=1 ' not in status or b' writes=0 ' not in status: raise AssertionError('Card not ready or unexpected write count')

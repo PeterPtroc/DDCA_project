@@ -25,7 +25,7 @@ module tb_ptrocos_files #(parameter PC_STYLE=0);
   reg attached=1,corrupt=0;
   wire [31:0] sd_commands,sd_reads,sd_writes,power_cycles;
   sd_spi_card_model #(.HIGH_CAPACITY(PC_STYLE==0),.VERSION2(PC_STYLE==0),
-      .IMAGE(PC_STYLE==0 ? "build/ptrocos_files/fat16.hex" : "build/ptrocos_files/fat12.hex")) card (
+      .IMAGE(PC_STYLE==0 ? "build/ptrocos_files/exfat.hex" : "build/ptrocos_files/fat12.hex")) card (
       .sck(sd_sck),.mosi(sd_mosi),.cs_n(sd_cs_n),.power_off(sd_reset),.attached(attached),
       .corrupt_next_read(corrupt),.miso(sd_miso),.commands(sd_commands),.reads(sd_reads),.writes(sd_writes),.power_cycles(power_cycles)
   );
@@ -139,7 +139,7 @@ module tb_ptrocos_files #(parameter PC_STYLE=0);
       if(line=="FAT unmounted") unmounts++;
       if(line=="mount the SD card first") missing_mount++;
       if(line=="FatFs error=1 SD=crc" || line=="FatFs error=1 SD=no-card" || line=="FatFs error=3 SD=no-card") errors++;
-      if((PC_STYLE==0 && line=="FAT mounted type=2 sectors=32768") ||
+      if((PC_STYLE==0 && line=="FAT mounted type=4 sectors=32768") ||
          (PC_STYLE==1 && line=="FAT mounted type=1 sectors=32768")) mounts++;
       if($sscanf(line,"ticks=%d heartbeat=%d io_polls=%d input_dropped=%d",ticks_report,heartbeat_report,io_report,dropped_report)==4) uptime_ok=1;
       if(line.len()<180) $display("FILES UART style=%0d %s",PC_STYLE,line);

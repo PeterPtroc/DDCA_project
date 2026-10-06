@@ -1,6 +1,6 @@
 # DDR framebuffer 与 VGA graphics
 
-第 8 阶段在实验 SoC 中加入 640×480、60 Hz 的 RGB565 DDR 扫描输出。原 CPU、生产顶层、FreeRTOS 内核与原工程入口保持冻结。单元、两种 PC 实现的完整 SoC 仿真、板级时序和串口上板验收均已通过。尚未连接 VGA 显示器，键盘实物验收按用户要求推迟。证据与 SHA-256 见 [ptrocos-graphics-validation.json](ptrocos-graphics-validation.json)。
+提供 640×480、60 Hz RGB565 扫描，以及 [视频](ptrocos-video.md)使用的 160×120 1bpp 模式。构建与命令入口见 [开发说明](ptrocos-development.md)。
 
 ## 内存通路
 
@@ -38,7 +38,7 @@ NEXT_BASE/NEXT_STRIDE 先暂存，提交时检查整个图像的 64 位地址范
 
 ## PtrocOS 命令和绘图接口
 
-`graphics` 固件保留 storage 固件的 TTY、shell、SD、FatFs 和文件命令，并增加：
+图形命令：
 
 ```text
 gfx info
@@ -54,6 +54,4 @@ pattern 0 为八色竖条，pattern 1 为二维 RGB565 渐变。`gfx info` 报�
 
 软件每八行让出 CPU，输入任务可以接收 Ctrl+C。取消尚未提交的绘制只改变 back buffer；已提交的换帧会先等待完成，再释放锁。超时留下的 pending 会在下次 begin 前再次等待，避免误选仍可能成为 front 的缓冲。图形模式期间 VGA TTY 仍能处理命令，其字符单元会在返回文本模式后显示。
 
-## 验证
-
-复现入口：`scripts/test_ptrocos_graphics.ps1`。结果、覆盖范围与产物 SHA 见 [ptrocos-graphics-validation.json](ptrocos-graphics-validation.json)。统一构建、命令入口和物理待验项见 [开发说明](ptrocos-development.md)。
+复现入口见 [仿真验证](../src/sim/README.md#ptrocos)，已验证范围与物理待验项见 [开发说明](ptrocos-development.md#验证边界)。

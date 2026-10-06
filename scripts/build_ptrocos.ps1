@@ -39,6 +39,8 @@ if($Firmware -in @('shell','storage','graphics','media','video','elf')) {
         'sw/freertos/kernel/portable/GCC/RISC-V/portASM.S')
 }
 if($Firmware -in @('storage','graphics','media','video','elf')) {
+    # Keep the complete exFAT shell within the existing 64 KiB ROM.
+    $Flags=@($Flags | Where-Object {$_ -ne '-O2'})+@('-Os','-flto')
     $Flags+=@('-DPTROCOS_STORAGE','-Isw/ptrocos/storage','-Ithird_party/fatfs')
     $Sources+=@('sw/ptrocos/storage/sd_card.c','sw/ptrocos/storage/storage_disk.c',
         'sw/ptrocos/storage/storage_hw.c','sw/ptrocos/storage/storage_commands.c',
@@ -51,9 +53,6 @@ if($Firmware -in @('graphics','media','video','elf')) {
 if($Firmware -in @('media','video','elf')) {
     $Flags+=@('-DPTROCOS_MEDIA')
     $Sources+=@('sw/ptrocos/media/decode.c','sw/ptrocos/media/audio.c','sw/ptrocos/media/media_commands.c')
-    # Keep the frozen ROM capacity. Size optimization applies only to this image.
-    $Flags=$Flags | Where-Object {$_ -ne '-O2'}
-    $Flags+=@('-Os')
 }
 if($Firmware -in @('video','elf')) {
     $Flags+=@('-DPTROCOS_VIDEO')
@@ -66,11 +65,14 @@ if($Firmware -eq 'elf') {
 }
 foreach($source in $Sources) {
     $object=Join-Path $Out ((($source -replace '[/\\]','_') -replace '\.[cS]$','.o'))
-    Invoke-Checked $Gcc ($Flags+@('-c',$source,'-o',$object))
+    # Keep compiler-generated memcpy/memset calls backed by native symbols.
+    $SourceFlags=if($source -eq 'sw/freertos/runtime.c') {@($Flags | Where-Object {$_ -ne '-flto'})} else {$Flags}
+    Invoke-Checked $Gcc ($SourceFlags+@('-c',$source,'-o',$object))
     $Objects+=$object
 }
 $Elf="$Out/ptrocos_$Firmware.elf"
-Invoke-Checked $Gcc (@('-march=rv32im_zicsr','-mabi=ilp32','-nostartfiles','-nostdlib',
+$LinkFlags=if($Firmware -in @('storage','graphics','media','video','elf')) {@('-Os','-flto')} else {@()}
+Invoke-Checked $Gcc ($LinkFlags+@('-march=rv32im_zicsr','-mabi=ilp32','-nostartfiles','-nostdlib',
     '-Wl,-T,sw/ptrocos/linker.ld','-Wl,--gc-sections',"-Wl,-Map,$Out/ptrocos_$Firmware.map",'-o',$Elf)+$Objects+@('-lgcc'))
 Invoke-Checked $Objcopy @('-O','binary',$Elf,"$Out/ptrocos_$Firmware.bin")
 Invoke-Checked $Python @('sw/tools/bin2hex.py',"$Out/ptrocos_$Firmware.bin","build/hex/ptrocos_$Firmware.hex",'--limit','65536')

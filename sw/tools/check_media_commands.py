@@ -7,6 +7,7 @@ import struct
 import subprocess
 from check_sd_card import Model,Transport,TRANSFER,ROOT
 from media_fixture import MediaImage
+from fatfs_fixture import Image
 OUT=ROOT/'build/ptrocos_media';OUT.mkdir(parents=True,exist_ok=True)
 sources=['sw/ptrocos/storage/sd_card.c','sw/ptrocos/storage/storage_disk.c',
     'sw/ptrocos/storage/storage_commands.c','sw/ptrocos/shell.c',
@@ -55,7 +56,7 @@ def samples(expected):
     count=lib.media_native_count(2);assert count==len(expected)
     assert struct.unpack('<'+str(count)+'H',C.string_at(lib.media_native_samples(),count*2))==tuple(expected)
 
-for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False)):
+for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False),(64,0,2,True)):
     fixture=MediaImage(kind,prefix);model=Model(version,high);model.storage=dict(fixture.initial)
     if high:model.sectors=max(32768,((fixture.total+prefix+1023)//1024)*1024)
     lib.storage_native_setup(C.byref(model.bus));lib.media_native_reset()
@@ -93,5 +94,12 @@ for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,
     assert command(model,'mount')[0].startswith(b'FAT mounted')
     assert command(model,'wav','/SHORT.WAV')[0].endswith(b'frames=537\r\n')
     assert command(model,'umount')[0]==b'FAT unmounted\r\n'
-    print(f'MEDIA COMMAND FIXTURE PASS FAT{kind} prefix={prefix} fragmented pixels/PCM cancel removal CRC cleanup',flush=True)
-print(f'MEDIA COMMANDS NATIVE PASS checks={checks}')
+    print(f'MEDIA COMMAND FIXTURE PASS {"exFAT" if kind==64 else f"FAT{kind}"} prefix={prefix} fragmented pixels/PCM cancel removal CRC cleanup',flush=True)
+fixture=Image(64,large=True);model=Model();model.sectors=fixture.total;model.storage=dict(fixture.initial)
+lib.storage_native_setup(C.byref(model.bus));assert command(model,'mount')[0].startswith(b'FAT mounted type=4')
+for name in ('bmp','wav'):
+    before=lib.media_native_count(0)
+    assert command(model,name,'/BIG.BIN')[0]==b'unsupported or malformed media file\r\n'
+    assert lib.media_native_count(0)==before
+assert command(model,'umount')[0]==b'FAT unmounted\r\n'
+print(f'MEDIA COMMANDS NATIVE PASS checks={checks} oversized-exFAT-rejected')

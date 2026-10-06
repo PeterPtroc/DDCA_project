@@ -1,21 +1,43 @@
-# RTL 仿真验证
+# 仿真验证
 
-自动化验证包含以下测试平台：
+## 生产示波器
 
-- `tb_cpu_trace.v` 为 `isa_test`、`hazard_test` 和 `crc_test` 生成架构级指令提交跟踪。`rv32_ref.py` 与 `diff_trace.py` 对比 PC、指令、寄存器写回和存储操作的副作用。
-- `tb_machine_mode.v` 运行自检固件，覆盖宽度访存、CSR 转发、ECALL、EBREAK、MRET、精确同步异常、mtime/mtimecmp、MSI 和 MTI。
-- `tb_precise_irq.v` 在两种 PC 实现中检查 MSI/MTI 的电平和单拍请求，覆盖连续访存前后 10 个中断落点，共 80 例。计数器检查存储和读后清零加载的请求数、退休数、返回后寄存器结果，防止丢失或重复副作用。
-- `tb_uart_fifo.v` 检查 RX FIFO 的连续接收、顺序、回绕、溢出、溢出清除及满队列时同时入队/出队。
-- `tb_freertos_smoke.v` 运行 GCC 构建的官方 FreeRTOS RISC-V port，要求四个任务均启动、至少 4 次阻塞切换、至少 2 次定时器 tick，并拒绝任何意外 trap。
-- `tb_freertos_display.v` 在当前 FreeRTOS 固件下模拟 JA4/JA9 到 JB1 跳线，检查频率、周期、高/低电平、占空比与状态页。性能计数器注入 0、9、10、12345678、99999999、100000000 和 UINT32_MAX，验证十进制各位、进位、溢出横线及八位实际段码扫描；CPU 和 RTOS 显示任务正常运行。
-- `tb_freertos_scope.v` 验证 RTOS 版 UART shell、连续命令、RUN/HOLD、测量/性能响应、真实分频的 SINGLE 深度采集、旧样本 CAP2 参数冻结、取消、无触发超时、后续采集恢复及 `CRC16.B` 校验。超时用例只提前 CLINT 时间，再由官方 port 逐次处理 tick；其他固件状态不强制修改。
-- `tb_freertos_uart_burst` 复用上述测试平台，按实际分频 868（115200 波特率）连续发送 `s`、`m`，要求得到依次排列的 5 字节和 24 字节响应。
-- `tb_scope_core.v` 检查 8 路固定 JA 信号的两个完整周期，同时覆盖边沿测量、实时波形模式、触发、时基、4096 点深度采集、按钮事件、数码管寄存器和主要 RGB 状态。
+在仓库根目录运行 `.\scripts\test_freertos.ps1` 重建固件并执行完整回归；已有固件可用 `.\scripts\test.ps1`。缺少 `build/hex/freertos.hex` 会直接失败。
 
-在仓库根目录运行以下命令，即可重建固件并执行全部验证：
+| 测试平台 | 范围 |
+| --- | --- |
+| `tb_cpu_trace` | isa/hazard/crc 固件与 Python 参考差分，核对 PC、指令、写回及存储副作用 |
+| `tb_machine_mode` | 宽度访存、CSR、ECALL/EBREAK/MRET、精确异常、CLINT/MSI/MTI |
+| `tb_precise_irq` | 两种 PC、MSI/MTI、电平/脉冲、10 个落点共 80 例；请求与退休只生效一次 |
+| `tb_uart_fifo` | 接收顺序、回绕、满队列、溢出、同时入队/出队 |
+| `tb_freertos_smoke` | 四任务启动、阻塞切换、定时器 tick、抢占上下文及无意外 trap |
+| `tb_freertos_display` | JA4/JA9 跳线模型、测量页、十进制进位/溢出及八位实际段码 |
+| `tb_freertos_scope` | UART、RUN/HOLD、SINGLE、CAP2 参数冻结、取消/超时/恢复与 CRC16.B |
+| `tb_freertos_uart_burst` | 实际 115200 波特率连续 s/m 命令，核对 5/24 字节响应顺序 |
+| `tb_scope_core` | 八路 JA、测量、实时波形、4096 点采集、取消优先级与板载交互 |
+
+范围限于当前裁剪的 FreeRTOS 四任务应用，物理板卡另见 [根 README](../../README.md#验证与文档)。
+
+## PtrocOS
+
+先用 [构建入口](../../docs/ptrocos-development.md#构建与下载) 生成匹配固件，再运行相应脚本。多数脚本默认覆盖两种 PC 实现，具体参数以脚本 `param` 为准；原生工具不需要 Vivado。
+
+| 范围 | 现有入口 |
+| --- | --- |
+| RV32M / 等待总线 | `scripts/test_rv32m.ps1` / `scripts/test_memory_interface.ps1` |
+| DDR2 / MIG 引脚 | `scripts/test_ptrocos_ddr2.ps1` / `scripts/test_ptrocos_mig.ps1` |
+| VGA/PS2 / 文本 SoC / TTY | `scripts/test_text_devices.ps1` / `scripts/test_ptrocos_text.ps1` / `scripts/test_ptrocos_shell.ps1` |
+| SD SPI / 存储 / 文件 | `scripts/test_sd_spi.ps1` / `scripts/test_ptrocos_storage.ps1` / `scripts/test_ptrocos_files.ps1` |
+| 图形 / 媒体 / 视频 | `scripts/test_ptrocos_graphics.ps1` / `scripts/test_ptrocos_media.ps1` / `scripts/test_ptrocos_video.ps1` |
+| 无缓存性能 | `scripts/test_ptrocos_perf.ps1` |
+| ELF / 可写指令 RAM | `scripts/test_ptrocos_elf.ps1` / `scripts/test_ptrocos_app_memory.ps1` |
+| FatFs / 文件原生检查 | `sw/tools/check_fatfs.py` / `sw/tools/check_storage_commands.py` |
+| 媒体 / 视频 / ELF 存储原生检查 | `sw/tools/check_media_commands.py` / `sw/tools/check_video_commands.py` / `sw/tools/check_elf_storage.py` |
+
+exFAT 沿用原有检查与 fixture。文件 SoC 的 PC_STYLE=0 使用 exFAT、PC_STYLE=1 使用 FAT12；存储 SoC 保留 FAT16/FAT12。2026-10-07 只重跑了文件与 ELF 的 PC_STYLE=0，不能据此声称此次两种 PC 均通过。已验证范围、未完成回归及物理待验项见 [开发说明](../../docs/ptrocos-development.md#验证边界)。
+
+原文件冻结检查为：
 
 ```powershell
-.\scripts\test_freertos.ps1
+git diff --exit-code --diff-filter=MDRT 80cc06f -- src/rtl scripts constraints sw/freertos
 ```
-
-也可先运行 `scripts/build_freertos.ps1`，再运行 `scripts/test.ps1`。缺失 `build/hex/freertos.hex` 时，测试脚本直接失败，不能输出整体 PASS。

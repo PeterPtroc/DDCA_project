@@ -1,48 +1,27 @@
 # PtrocOS 开发与使用
 
-开发基线为 `80cc06f144e8c954c662490dbeac25e489bfda8d`。原正确 CPU、生产 SoC/top、原约束、原固件及 FreeRTOS 内核保持冻结；扩展采用独立 CPU/SoC、外设和构建入口。提交到 `PtrocOS`，消息沿用 `[feat]`、`[fix]`、`[improvement]` 加简短中文；未 push。
+PtrocOS 是 Nexys A7-100T 的独立 RV32IM + Zicsr 实验系统，使用 FreeRTOS 11.3.1，支持 DDR2/DMA、VGA/PS2、SD、文件与媒体、受信任 ELF 应用。未实现 cache。原生产 CPU、SoC、约束、固件及构建入口冻结于 `80cc06f144e8c954c662490dbeac25e489bfda8d`，扩展使用独立模块。
 
-## 功能与证据
+## 构建与下载
 
-| 顺序 | 内容 | 说明 / 验收 |
-| --- | --- | --- |
-| 1 | 冻结正确 CPU | 基线回归及原文件 diff 检查 |
-| 2 | RV32M | [ISA 验收](rv32m-validation.json)，八个乘除操作、5248 向量、两种 PC 实现各 10001 条退休差分 |
-| 3 | DDR2 + DMA | [DDR2 验收](ptrocos-ddr2-validation.json)，握手、AXI、MIG 校准和板卡全容量读写 |
-| 4 | VGA text + PS/2 | [接口](ptrocos-text.md) / [验收](ptrocos-text-validation.json) |
-| 5 | TTY + shell | [使用](ptrocos-shell.md) / [验收](ptrocos-shell-validation.json) |
-| 6 | SD + FatFs | [接口](ptrocos-storage.md) / [验收](ptrocos-storage-validation.json) |
-| 7 | ls / cat / hexdump | [命令](ptrocos-files.md) / [验收](ptrocos-files-validation.json) |
-| 8 | DDR framebuffer | [图形接口](ptrocos-graphics.md) / [验收](ptrocos-graphics-validation.json) |
-| 9 | BMP / WAV | [媒体格式](ptrocos-media.md) / [验收](ptrocos-media-validation.json) |
-| 10 | 自定义视频 / Bad Apple | [PTV 格式与转换](ptrocos-video.md) / [验收](ptrocos-video-validation.json) |
-| 11 | I/D cache 评估 | [测量与取舍](ptrocos-cache-evaluation.md)，未加入 cache |
-| 12 | ELF loader | [ABI 与内存窗口](ptrocos-elf.md) / [验收](ptrocos-elf-validation.json) |
-
-RV32M 使用移位加法/恢复除法，普通运算迭代 32 次，覆盖除零与有符号溢出。多周期等待保留精确 trap、中断和单次 MMIO 提交。DDR CPU 通路使用 32 位 word bridge、128 位 AXI beat 和 held-payload mailbox；DMA 检查对齐、范围和重叠，取消等待已发出的事务完成。图形扫描使用 UI 域 burst 与四个行槽，在垂直消隐原子交换 front。
-
-当前完整固件为 `elf`，保留所有文件和媒体命令。ROM 64,692 字节；CPU 100 MHz、DDR UI 81.25 MHz、像素时钟 25.2 MHz。最终 ELF 位流 setup/hold/pulse 裕量为 +0.268/+0.018/+0.206 ns，内部未约束端点为 0，DRC 无 Error/Critical Warning。UART 的应用诊断、DMA、取消重试、调度及媒体命令已通过。
-
-## 构建与上板
-
-依赖 Vivado 2024.2 与 `riscv-none-elf` GCC；主机视频转换另需 FFmpeg、NumPy。在仓库根目录运行：
+需要 Windows PowerShell、Python 3 和 Vivado 2024.2。GCC 与生产固件共用自动安装的固定工具链；自备工具链可传 `-ToolchainPrefix`。在仓库根目录执行：
 
 ```powershell
-.\scripts\build_ptrocos.ps1 -Firmware elf -ToolchainPrefix <riscv-none-elf前缀>
+.\scripts\build_ptrocos.ps1 -Firmware elf
 vivado -mode batch -source scripts/build_ptrocos_bitstream.tcl -tclargs elf
 vivado -mode batch -source scripts/program_ptrocos.tcl -tclargs <已检测的JTAG-URL> elf
 python tools/ptrocos_elf_test.py --port COM9
 ```
 
-可选固件：`ddr2/text/shell/storage/graphics/media/video/elf`；各阶段测试入口保存在 `scripts/test_*.ps1`。应用构建随 ELF 固件生成，也可单独使用 `scripts/build_ptrocos_apps.ps1`。最终 bitstream 为 `build/ptrocos_elf_vivado/ptrocos_elf.bit`，仅写 FPGA 易失配置，不写 Flash。构建必须经过现有时序、DRC、CDC 覆盖及音频开漏检查，不放宽 +0.100 ns setup 门槛。
+下载脚本连接 `localhost:31234` 的硬件服务器，需要实际 JTAG target URL；`COM9` 替换为实际串口。仅写 FPGA 易失配置。完整固件为 `elf`；也可构建 `ddr2/text/shell/storage/graphics/media/video`，另有仅仿真的 `perf`。默认构建仍为 `ddr2`。
 
-复核已归档 routed checkpoint 可用：
+ELF 构建同时生成示例应用；单独构建使用 `scripts/build_ptrocos_apps.ps1`。输出为 `build/hex/ptrocos_elf.hex`、`build/ptrocos_elf/apps/` 和 `build/ptrocos_elf_vivado/ptrocos_elf.bit`。位流必须通过 setup ≥ +0.100 ns、非负 hold/pulse、DRC、CDC 覆盖及音频开漏检查。归档 routed checkpoint 可用 `vivado -mode batch -source scripts/resume_ptrocos_route.tcl -tclargs elf verify` 复核。
 
-```powershell
-vivado -mode batch -source scripts/resume_ptrocos_route.tcl -tclargs elf verify
-```
+存储及其上层固件采用 `-Os`/LTO，完整 exFAT ELF 固件 ROM 为 60,256 字节，适配 64 KiB。文件命令使用 64 位大小/偏移；BMP/WAV/PTV 与 ELF32 保留 32 位格式范围，拒绝大于 `UINT32_MAX` 的文件。
 
-## 常用命令
+## 使用与接口
+
+UART 为 115200 8N1，VGA/PS2 与 UART 各有独立 TTY。命令按固件能力提供，完整固件示例：
 
 ```text
 help
@@ -62,10 +41,39 @@ gfx off
 umount
 ```
 
-UART 为 115200 baud。Ctrl+C 取消当前命令；读卡取消或错误使挂载失效时先重新 `mount`。`cat` 原样输出字节，查看二进制用 `hexdump`。`audio test`、`video test` 和 `elf test` 可在没有 SD 卡时运行诊断；ELF 只支持提供的受信任 M-mode ABI，不提供进程隔离。
+Ctrl+C 取消当前命令。读卡取消或错误导致挂载失效时重新 `mount`。`audio test`、`video test`、`elf test` 无需 SD 卡。
 
-## 交付与物理待验
+| 文档 | 内容 |
+| --- | --- |
+| [文本控制台](ptrocos-text.md) | VGA/PS2 寄存器、TTY 编辑、基础 shell |
+| [存储与文件命令](ptrocos-storage.md) | SD、FatFs/exFAT、ls/cat/hexdump、取消规则 |
+| [图形](ptrocos-graphics.md) | DDR 扫描、寄存器、帧缓冲所有权 |
+| [BMP/WAV](ptrocos-media.md) | 支持格式、音频电路与寄存器 |
+| [PTV 视频](ptrocos-video.md) | 转换器、文件格式、帧环与调度 |
+| [ELF](ptrocos-elf.md) | 代码/数据窗口、文件校验、M-mode ABI |
+| [cache 评估](ptrocos-cache-evaluation.md) | 无缓存性能、地址重放及一致性要求 |
+| [仿真验证](../src/sim/README.md) | 测试范围与复现入口 |
 
-原素材在 `build/ptrocos_video/assets/badapple.mp4`，转换片为 `build/ptrocos_video/BADAPPLE.PTV`，FAT16 文件镜像为 `BADAPPLE-SD.img`；均未写物理卡。ELF 示例与 `ELF-SD.img` 在 `build/ptrocos_elf/`。必要的最终产物和验收记录保存于各阶段 snapshot；完整 SHA 清单位于 `build/ptrocos-validation/`，Git 文档保留结果摘要。生成缓存和中间工程可从源码重建。
+## CPU、DDR2 与 DMA
 
-已验证范围包含独立参考、原生/单元/SoC 模型、实际布线及 UART 状态。真实 SD 当前报告 `no-card`；实卡文件/Bad Apple/ELF 执行、VGA 显示器和 J8 模拟音频仍待验。键盘实物测试按用户要求延期。未结束的补充回归不计为 PASS，具体边界保留在验收 JSON 中。
+CPU 100 MHz，DDR UI 81.25 MHz，像素 25.2 MHz。RV32M 使用移位加法/恢复除法，普通运算迭代 32 次，覆盖除零与有符号溢出；多周期等待保持精确 trap、中断与单次 MMIO 副作用。
+
+DDR 为 `0x80000000..0x87ffffff`，128 MiB；越界访问 fault。CPU/DMA 通过 32 位 word bridge、128 位 AXI beat 和 held-payload mailbox 访问 DDR。请求等待期间地址/数据保持，完成后只提交一次；CDC 限制 payload 延迟，不对整个时钟域作假路径。
+
+DMA 基址 `0x4000a000`：
+
+| 偏移 | 寄存器 | 语义 |
+| --- | --- | --- |
+| `0x00` / `0x04` | SOURCE / DESTINATION | DDR 源/目的字节地址，支持 byte strobe |
+| `0x08` | WORDS | 32 位字数，支持 byte strobe |
+| `0x0c` | COMMAND | bit0 启动，bit1 当前事务完成后取消，bit2 空闲时清状态；低字节 strobe 有效 |
+| `0x10` | STATUS | bit0 busy、bit1 done、bit2 error，bits15:8 错误码 |
+| `0x14` | COMPLETED | 成功写入的字数 |
+
+启动锁存参数，要求四字节对齐、整个范围在 DDR 内且不重叠；零长度立即完成。错误码 1/2/3/4/5 为未对齐/越界/重叠/总线错误/取消。取消不会撤销已完成写入。`ddrtest` 使用 `0x80001000..0x800013ff` 和 `0x80002000..0x800023ff`，复制 256 字并核对 CRC `0000f364`。
+
+## 验证边界
+
+2026-10-07 本地验证通过：`storage/graphics/media/video/elf` 五个固件构建、现有原生回归及 PC_STYLE=0 的文件/ELF SoC 仿真。日志为 `build/exfat-*.log`，复现入口见 [仿真验证](../src/sim/README.md#ptrocos)。历史完整记录位于 `build/ptrocos-validation/`，与构建产物一起受 Git 忽略，不随克隆分发。
+
+当前 exFAT 固件尚未重建位流或上板。实卡文件/媒体/ELF、VGA 显示器、J8 模拟音频仍待验；物理键盘按用户要求延期。历史 UART 的 `no-card` 记录只说明当次状态。未取得最终 PASS 的补充视频回归不计通过。

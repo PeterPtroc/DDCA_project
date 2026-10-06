@@ -32,7 +32,7 @@
 #define FF_MIN_GPT 0x10000000
 #define FF_USE_TRIM 0
 #define FF_FS_TINY 1
-#define FF_FS_EXFAT 0
+#define FF_FS_EXFAT 1
 #define FF_FS_NORTC 1
 #define FF_NORTC_MON 1
 #define FF_NORTC_MDAY 1

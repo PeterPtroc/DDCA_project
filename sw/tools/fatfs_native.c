@@ -39,7 +39,7 @@ int ff_native_mount(const struct sd_transport *bus)
     return f_mount(&fs,"0:",1);
 }
 int ff_native_unmount(void) {return f_mount(NULL,"0:",0);}
-int ff_native_read(const char *path,uint32_t offset,void *data,unsigned capacity,unsigned *count)
+int ff_native_read(const char *path,uint64_t offset,void *data,unsigned capacity,unsigned *count)
 {
     FIL file;*count=0;
     FRESULT result=f_open(&file,path,FA_READ);

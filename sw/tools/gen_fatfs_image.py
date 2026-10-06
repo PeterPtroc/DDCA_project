@@ -11,9 +11,9 @@ def crc(data):
         value^=byte
         for _ in range(8): value=(value>>1)^(0xa001 if value&1 else 0)
     return value
-for kind in (12,16):
+for kind in (12,16,64):
     image=(FileImage if args.files else Image)(kind)
-    with (out/f'fat{kind}.hex').open('w',newline='\n') as file:
+    with (out/('exfat.hex' if kind==64 else f'fat{kind}.hex')).open('w',newline='\n') as file:
         for sector,data in sorted(image.initial.items()):
             file.write(f'@{sector*512:08x}\n')
             file.write('\n'.join(f'{byte:02x}' for byte in data)+'\n')

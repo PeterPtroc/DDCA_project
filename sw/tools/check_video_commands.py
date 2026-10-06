@@ -30,7 +30,7 @@ lib.video_native_hook.argtypes=[HOOK];lib.video_native_value.argtypes=[C.c_uint]
 lib.video_native_samples.restype=C.POINTER(C.c_uint16)
 checks=0
 
-for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False)):
+for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False),(64,0,2,True)):
     fixture=VideoImage(kind,prefix);model=Model(version,high);model.storage=dict(fixture.initial)
     if high:model.sectors=max(32768,((fixture.total+prefix+1023)//1024)*1024)
     lib.storage_native_setup(C.byref(model.bus))
@@ -93,5 +93,5 @@ for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,
     assert command('mount')[0].startswith(b'FAT mounted')
     assert b'PTV played' in command('play','/CLIP.PTV')[0]
     assert command('umount')[0]==b'FAT unmounted\r\n'
-    print(f'PTV COMMAND FIXTURE PASS FAT{kind} prefix={prefix} fragmented clocked-PCM bitmap cancel removal CRC retry',flush=True)
+    print(f'PTV COMMAND FIXTURE PASS {"exFAT" if kind==64 else f"FAT{kind}"} prefix={prefix} fragmented clocked-PCM bitmap cancel removal CRC retry',flush=True)
 print(f'PTV COMMANDS NATIVE PASS checks={checks}',flush=True)

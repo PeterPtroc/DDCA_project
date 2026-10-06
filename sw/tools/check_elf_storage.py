@@ -8,6 +8,7 @@ import subprocess
 from check_sd_card import Model,Transport,TRANSFER,ROOT
 from check_elf_decode import Image,expected_memory,CODE,DATA,CODE_END,DATA_END
 from elf_fixture import ElfImage
+from fatfs_fixture import Image as FatImage
 OUT=ROOT/'build/ptrocos_elf';OUT.mkdir(parents=True,exist_ok=True)
 sources=['sw/ptrocos/storage/sd_card.c','sw/ptrocos/storage/storage_disk.c',
     'sw/ptrocos/storage/storage_commands.c','sw/ptrocos/shell.c','sw/ptrocos/elf/elf_decode.c',
@@ -26,7 +27,7 @@ lib.ptrocos_storage_command.argtypes=[C.c_uint,C.POINTER(C.c_char_p),WRITE,BYTE,
 lib.ptrocos_storage_elf.argtypes=[C.c_char_p,C.POINTER(Image),WRITE,C.c_void_p,C.POINTER(C.c_uint32)]
 lib.elf_native_sink.argtypes=[SINK]
 checks=0
-for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False)):
+for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False),(64,0,2,True)):
     fixture=ElfImage(kind,prefix);model=Model(version,high);model.storage=dict(fixture.initial)
     if high:model.sectors=max(32768,((fixture.total+prefix+1023)//1024)*1024)
     lib.storage_native_setup(C.byref(model.bus))
@@ -91,5 +92,9 @@ for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,
     model.read_crc_bad=True;load('/HELLO.ELF',4);model.read_crc_bad=False
     assert command('mount').startswith(b'FAT mounted')
     load('/HELLO.ELF');assert command('umount')==b'FAT unmounted\r\n'
-    print(f'ELF STORAGE FIXTURE PASS FAT{kind} prefix={prefix} fragmented exact-copy BSS cancel removal CRC retry',flush=True)
-print(f'ELF STORAGE NATIVE PASS checks={checks}',flush=True)
+    print(f'ELF STORAGE FIXTURE PASS {"exFAT" if kind==64 else f"FAT{kind}"} prefix={prefix} fragmented exact-copy BSS cancel removal CRC retry',flush=True)
+fixture=FatImage(64,large=True);model=Model();model.sectors=fixture.total;model.storage=dict(fixture.initial)
+lib.storage_native_setup(C.byref(model.bus));assert command('mount').startswith(b'FAT mounted type=4')
+assert load('/BIG.BIN',2)[0]==b'ELF load error=2\r\n'
+assert command('umount')==b'FAT unmounted\r\n'
+print(f'ELF STORAGE NATIVE PASS checks={checks} oversized-exFAT-rejected',flush=True)

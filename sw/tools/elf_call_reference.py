@@ -7,7 +7,7 @@ p=argparse.ArgumentParser();p.add_argument('--toolchain-prefix',required=True);a
 out=Path('build/ptrocos_elf')
 dump=subprocess.check_output([a.toolchain_prefix+'-objdump.exe','-d',str(out/'ptrocos_elf.elf')],text=True)
 start=re.search(r'^([0-9a-f]+) <ptrocos_app_call>:',dump,re.M)
-abort=re.search(r'^([0-9a-f]+) <ptrocos_app_abort>:\n(.*?)(?=\n[0-9a-f]+ <)',dump,re.M|re.S)
+abort=re.search(r'^([0-9a-f]+) <ptrocos_app_abort>:\n(.*?)(?=\n[0-9a-f]+ <|\Z)',dump,re.M|re.S)
 assert start and abort
 returns=re.findall(r'^\s+([0-9a-f]+):\s+00008067\s+ret\s*$',abort[2],re.M)
 assert len(returns)==1

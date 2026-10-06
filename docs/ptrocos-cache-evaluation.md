@@ -1,6 +1,6 @@
 # I/D cache 评估
 
-视频阶段完成后，使用独立性能固件测量两种 PC 实现。CPU 与既有 RTL 保持冻结，未加入 cache。复现入口为 `scripts/test_ptrocos_perf.ps1`；精确结果与请求地址记录见 [缓存评估验收](ptrocos-cache-validation.json)。
+使用独立性能固件测量两种 PC 实现，未加入 cache。复现入口为 `scripts/test_ptrocos_perf.ps1`，原始记录保留在本地 `build/ptrocos-validation/`。
 
 | 场景 | CSR 周期 | DDR 等待比例 |
 | --- | ---: | ---: |

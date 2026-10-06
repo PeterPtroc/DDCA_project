@@ -1,6 +1,6 @@
 # BMP 显示与 WAV 播放
 
-第 9 阶段的 `media` 固件通过 FatFs 读取 BMP/WAV：BMP 转换成 RGB565 后在垂直消隐期交换 DDR framebuffer，WAV 转换成单声道 PCM 后送入板载音频 FIFO。原 CPU、生产 SoC、FreeRTOS 内核和原工程入口继续冻结。验证记录及文件 SHA-256 见 [ptrocos-media-validation.json](ptrocos-media-validation.json)。
+通过 FatFs 流式读取 BMP/WAV，分别输出到 RGB565 framebuffer 与音频 FIFO。构建见 [开发说明](ptrocos-development.md)，图形交换见 [图形接口](ptrocos-graphics.md)。
 
 ## 命令与文件格式
 
@@ -17,7 +17,7 @@ gfx off
 
 `wav` 支持 RIFF/WAVE 的 PCM format 1，8/16 位、单声道或双声道、8000～48000 Hz。8 位输入为无符号，16 位输入为有符号小端；双声道使用 32 位和取平均，向零截断，再加 32768 送入无符号 16 位 FIFO。不重采样。解析器处理额外 chunk 和奇数字节 padding，允许 `data` 在 `fmt ` 前，拒绝重复 `fmt `/`data`、空数据、不完整采样帧、不一致的 blockAlign/byteRate、越界长度与截断文件。
 
-两个解析器都在文件边界内检查长度，再开始输出。媒体工作区固定占 3840 字节，包含一个最大输入行和一个 RGB565 输出行；WAV 复用它，每批最多 256 帧。文件大小不会决定 RAM 分配。`media` 固件使用 `-Os`，指令与数据 BRAM 容量仍各为 64 KiB。
+解析器先检查文件边界，拒绝大于 `UINT32_MAX` 的文件。固定 3840 字节工作区包含最大输入行与 RGB565 输出行；WAV 复用，每批最多 256 帧，不按文件大小分配 RAM。
 
 ## 取消与资源所有权
 
@@ -47,6 +47,4 @@ BMP 未提交前取消或读失败会放弃 back buffer，保留 front buffer。
 
 开始播放前通常预填 1024 帧，短文件在最后一批入队后启动。软件等待空间时每 1 ms 让出 CPU；从开始等待起 1 秒仍未取得空间或排空则报告输出错误。FIFO 满时拒绝覆盖，排空期间拒绝新写入。欠载输出中点静音并计数；媒体命令发现 sticky 错误后停止播放。正常结束保留完成计数供 `audio info` 检查，下一次播放先复位计数。
 
-## 验证
-
-复现入口：`scripts/test_ptrocos_media.ps1`。结果、覆盖范围与产物 SHA 见 [ptrocos-media-validation.json](ptrocos-media-validation.json)。统一构建、命令入口和物理待验项见 [开发说明](ptrocos-development.md)。
+复现入口见 [仿真验证](../src/sim/README.md#ptrocos)，已验证范围与物理待验项见 [开发说明](ptrocos-development.md#验证边界)。

@@ -74,26 +74,27 @@ def expect(model,args,expected,**options):
     assert actual==expected,(args,actual[:200],expected[:200],len(actual),len(expected))
     return cancel
 
-def dump(data,offset=0,count=256):
+def dump(data,offset=0,count=256,base=0):
     result=[]
     for pos in range(offset,min(len(data),offset+count),16):
         row=data[pos:min(pos+16,offset+count)]
         left=' '.join(f'{b:02x}' for b in row[:8]).ljust(23)
         right=' '.join(f'{b:02x}' for b in row[8:]).ljust(23)
         ascii_text=''.join(chr(b) if 32<=b<127 else '.' for b in row).ljust(16)
-        result.append(f'{pos:08x}  {left}  {right}  |{ascii_text}|\r\n')
+        address=pos+base;width=16 if address>0xffffffff else 8
+        result.append(f'{address:0{width}x}  {left}  {right}  |{ascii_text}|\r\n')
     return ''.join(result).encode()
 
 rng=random.Random(0x707)
-for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False)):
+for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,2048,2,False),(64,0,2,True),(64,2048,2,True)):
     fixture=Image(kind,prefix);model=Model(version,high)
     if high: model.sectors=max(32768,((fixture.total+prefix+1023)//1024)*1024)
     model.storage=dict(fixture.initial);lib.storage_native_setup(C.byref(model.bus))
     expect(model,('umount',),b'FAT unmounted\r\n')
     for args in (('ls',),('cat','/HELLO.TXT'),('hexdump','/HELLO.TXT')):
         expect(model,args,b'mount the SD card first\r\n')
-    # FatFs FS_FAT12/16/32 are 1/2/3.
-    mounted=f'FAT mounted type={ {12:1,16:2,32:3}[kind]} sectors={model.sectors}\r\n'.encode()
+    # FatFs FS_FAT12/16/32/EXFAT are 1/2/3/4.
+    mounted=f'FAT mounted type={ {12:1,16:2,32:3,64:4}[kind]} sectors={model.sectors}\r\n'.encode()
     expect(model,('mount',),mounted)
     root=b'f 1100 HELLO.TXT\r\nd 0 SUBDIR\r\n'
     for path in (None,'/','0:/'):
@@ -110,7 +111,7 @@ for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,
         expect(model,('hexdump','/HELLO.TXT',str(offset),str(count)),dump(fixture.payload,offset,count))
     for args in (('ls','/','extra'),('cat',),('cat','/HELLO.TXT','extra'),('hexdump',),
                  ('hexdump','/HELLO.TXT','-1'),('hexdump','/HELLO.TXT','0x10'),
-                 ('hexdump','/HELLO.TXT','4294967296'),('hexdump','/HELLO.TXT','0','4097'),
+                 ('hexdump','/HELLO.TXT','18446744073709551616'),('hexdump','/HELLO.TXT','0','4097'),
                  ('hexdump','/HELLO.TXT','0','x'),('hexdump','/HELLO.TXT','0','1','extra')):
         before=model.transfers;result,_=command(model,*args)
         assert result.startswith(b'usage:') and model.transfers==before
@@ -169,8 +170,15 @@ for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,
     model.attached=True;expect(model,('mount',),mounted)
     expect(model,('ls','/SUBDIR'),b'f 256 NESTED.BIN\r\n')
     expect(model,('umount',),b'FAT unmounted\r\n')
-    print(f'STORAGE COMMAND FIXTURE PASS FAT{kind} prefix={prefix} raw-bytes Unicode offsets cancel CRC removal remount mutex',flush=True)
+    print(f'STORAGE COMMAND FIXTURE PASS {"exFAT" if kind==64 else f"FAT{kind}"} prefix={prefix} raw-bytes Unicode offsets cancel CRC removal remount mutex',flush=True)
+fixture=Image(64,large=True);model=Model();model.sectors=fixture.total;model.storage=dict(fixture.initial)
+lib.storage_native_setup(C.byref(model.bus))
+expect(model,('mount',),f'FAT mounted type=4 sectors={model.sectors}\r\n'.encode())
+expect(model,('ls','/BIG.BIN'),f'f {fixture.large_size} BIG.BIN\r\n'.encode())
+expect(model,('hexdump','/BIG.BIN',str(fixture.large_offset),'80'),dump(fixture.large_payload,count=80,base=fixture.large_offset))
+expect(model,('hexdump','/BIG.BIN','18446744073709551615'),b'')
+expect(model,('umount',),b'FAT unmounted\r\n')
 for prefix,name in ((b'ls',b'ls'),(b'ca',b'cat'),(b'hex',b'hexdump')): assert lib.shell_complete(prefix)==name
 assert lib.shell_complete(b'c') is None
 command(model);command(model,'other')
-print(f'PTROCOS FILE COMMANDS NATIVE PASS checks={checks} FAT12 FAT16 FAT32 MBR binary-cat independent-hexdump concurrent-read cleanup')
+print(f'PTROCOS FILE COMMANDS NATIVE PASS checks={checks} FAT12 FAT16 FAT32 exFAT MBR binary-cat independent-hexdump concurrent-read cleanup 64-bit-size-offset')

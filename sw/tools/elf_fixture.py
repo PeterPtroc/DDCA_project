@@ -11,6 +11,9 @@ class ElfImage(Image):
         self.files={name.upper()+'.ELF':(folder/(name+'.elf')).read_bytes() for name in ('hello','fault','loop')}
         bad=bytearray(self.files['HELLO.ELF']);bad[36]=1
         self.files['BAD.ELF']=bytes(bad)
+        if kind==64:
+            for name,data in self.files.items():self.add_exfat_file(name,data)
+            return
         root=bytearray(self.initial[self.rootsector]);cluster=100
         for index,(name,data) in enumerate(self.files.items(),2):
             count=(len(data)+511)//512;chain=list(range(cluster,cluster+2*count,2));cluster+=2*count
