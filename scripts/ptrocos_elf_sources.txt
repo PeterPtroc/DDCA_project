@@ -1,4 +1,4 @@
-src/rtl/bus/mmio_decoder.v
+src/rtl/bus/ptrocos_mmio.v
 src/rtl/bus/word_bus_arbiter.v
 src/rtl/cpu/alu.v
 src/rtl/cpu/crc16_unit.v
@@ -24,14 +24,9 @@ src/rtl/video/vga_text.v
 src/rtl/video/vga_ddr_framebuffer.v
 src/rtl/peripheral/button_debounce.v
 src/rtl/peripheral/button_mmio.v
-src/rtl/peripheral/edge_meter_scope.v
-src/rtl/peripheral/fixed_test_signals.v
 src/rtl/peripheral/gpio_mmio.v
 src/rtl/peripheral/input_sync.v
-src/rtl/peripheral/live_scope.v
 src/rtl/peripheral/perf_counter.v
-src/rtl/peripheral/rgb_status.v
-src/rtl/peripheral/scope_capture.v
 src/rtl/peripheral/sevenseg.v
 src/rtl/peripheral/timer_mmio.v
 src/rtl/peripheral/uart_mmio.v

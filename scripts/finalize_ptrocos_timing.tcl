@@ -36,7 +36,7 @@ if {[llength [get_ports -quiet aud_pwm]]} {
     }
     puts "PTROCOS AUDIO ELECTRICAL PASS: A11 OBUFT I=GND, D12 amplifier enable"
 }
-foreach {clock_pin expected_period} {cpu_clock/O 10.000 reference_clock/O 5.000 pixel_clock/O 39.682540} {
+foreach {clock_pin expected_period} {cpu_clock/O 10.000 reference_clock/O 5.000 pixel_clock/O 39.682540 memory/u_ptrocos_ddr2_mig_mig/u_ddr2_infrastructure/u_bufg_clkdiv0/O 12.307692} {
     set clocks [get_clocks -of_objects [get_pins $clock_pin]]
     if {[llength $clocks]!=1 || abs([get_property PERIOD $clocks]-$expected_period)>0.001} {
         error "Incorrect implemented clock at $clock_pin: $clocks, expected ${expected_period}ns"
@@ -138,14 +138,23 @@ if {[llength [get_cells -hier -quiet -regexp {.*soc/app_memory/.*}]]} {
 set preliminary [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $preliminary] && [get_property SLACK $preliminary]>=-0.500 &&
     [get_property SLACK $preliminary]<0.100} {
-    if {[file tail $out] in {ptrocos_media_vivado ptrocos_video_vivado ptrocos_elf_vivado}} {
+    if {[file tail $out] in {ptrocos_media_vivado ptrocos_video_vivado ptrocos_elf_vivado} ||
+        [llength [get_cells -hier -quiet -regexp {.*soc/app_memory/.*}]]} {
         # Physical optimization otherwise ignores positive slack below our
         # acceptance margin. Optimize against a tighter target, then restore
         # the normal clock uncertainty before reporting or emitting the bit.
-        set_clock_uncertainty -setup 0.150 [get_clocks sys_clk]
+        # The DDR graphics address path can determine overall WNS even when
+        # the CPU already has margin. Optimize all functional clock domains.
+        set optimize_clocks [get_clocks -of_objects [get_pins {
+            cpu_clock/O pixel_clock/O
+            memory/u_ptrocos_ddr2_mig_mig/u_ddr2_infrastructure/u_bufg_clkdiv0/O
+        }]]
+        if {[llength $optimize_clocks]!=3} {error "Missing functional clock for timing optimization"}
+        set_clock_uncertainty -setup 0.250 $optimize_clocks
+        phys_opt_design -directive AggressiveExplore
         phys_opt_design -placement_opt -routing_opt
         route_design -directive Explore
-        set_clock_uncertainty -setup 0.000 [get_clocks sys_clk]
+        set_clock_uncertainty -setup 0.000 $optimize_clocks
     } else {
         phys_opt_design -directive AggressiveExplore
         route_design -directive NoTimingRelaxation

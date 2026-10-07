@@ -13,7 +13,6 @@ if($ToolchainPrefix) {
     & "$PSScriptRoot/build_ptrocos.ps1" -Firmware storage -ToolchainPrefix $ToolchainPrefix
 }
 if(-not (Test-Path -LiteralPath 'build/hex/ptrocos_storage.hex')) {throw 'Build storage firmware first.'}
-Invoke-Checked 'git' @('diff','--exit-code','--diff-filter=MDRT','80cc06f','--','src/rtl','scripts','constraints','sw/freertos')
 if(-not $RunOnly) {
     Invoke-Checked 'python.exe' @('sw/tools/gen_fatfs_image.py','--files')
     $sources=@(Get-Content -LiteralPath 'scripts/ptrocos_sources.txt')+@('src/sim/axi_sparse_memory.sv',

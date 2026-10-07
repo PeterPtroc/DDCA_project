@@ -1,5 +1,5 @@
 `default_nettype none
-// Experimental RV32IM core forked from baseline 80cc06f. rv32_core stays frozen.
+// RV32IM core with the same pipeline and precise-trap contract as rv32_core.
 module rv32im_core #(
     parameter CPU_PC_NEXT_STYLE = 0
 ) (

@@ -14,7 +14,6 @@ if($ToolchainPrefix) {
     & "$PSScriptRoot/build_ptrocos.ps1" -Firmware graphics -ToolchainPrefix $ToolchainPrefix
 }
 New-Item -ItemType Directory -Path 'build/ptrocos_graphics' -Force | Out-Null
-Invoke-Checked 'git' @('diff','--exit-code','--diff-filter=MDRT','80cc06f','--','src/rtl','scripts','constraints','sw/freertos')
 if(-not $RunOnly) {Invoke-Checked 'python.exe' @('sw/tools/gen_graphics_pattern.py')}
 $tests=@()
 if(-not $SocOnly) {

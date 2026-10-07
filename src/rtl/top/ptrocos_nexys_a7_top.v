@@ -16,8 +16,6 @@ module ptrocos_nexys_a7_top #(
     output wire [3:0] vga_red, vga_green, vga_blue,
     output wire vga_hsync, vga_vsync,
     output wire aud_pwm,aud_sd,
-    output wire [7:0] pmod_ja,
-    input wire jb1,
     output wire [7:0] seg_an,
     output wire [6:0] seg,
     output wire seg_dp, rgb0_r, rgb0_g, rgb0_b, rgb1_r, rgb1_g, rgb1_b,
@@ -91,7 +89,7 @@ module ptrocos_nexys_a7_top #(
   wire cpu_arvalid,cpu_arready,scan_arvalid,scan_arready,cpu_rlast,cpu_rvalid,cpu_rready,scan_rlast,scan_rvalid,scan_rready;
   wire [127:0] cpu_rdata,scan_rdata;
   ptrocos_soc #(.CPU_PC_NEXT_STYLE(CPU_PC_NEXT_STYLE),.UART_DIVIDER(UART_DIVIDER),.IMEM_HEX(IMEM_HEX)) soc (
-      .clk(cpu_clk),.rst(cpu_rst),.sw(sw),.btn(btn),.capture_in({7'd0,jb1}),
+      .clk(cpu_clk),.rst(cpu_rst),.sw(sw),.btn(btn),
       .ui_clk(ui_clk),.ui_rst(ui_rst),
       .pixel_clk(pixel_clk),.pixel_rst(pixel_rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
       .sd_miso(sd_miso),.sd_cd_n(sd_cd_n),.sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset),
@@ -105,7 +103,6 @@ module ptrocos_nexys_a7_top #(
       .scan_arvalid(scan_arvalid),.scan_arready(scan_arready),.scan_rdata(scan_rdata),.scan_rresp(scan_rresp),
       .scan_rlast(scan_rlast),.scan_rvalid(scan_rvalid),.scan_rready(scan_rready)
   );
-  fixed_test_signals test_signals(.clk(cpu_clk),.rst(cpu_rst),.test_out(pmod_ja));
   word_bus_cdc ddr_cdc (
       .source_clk(cpu_clk),.source_rst(cpu_rst),.source_valid(mv),.source_we(mw),
       .source_addr(ma),.source_wdata(md),.source_wstrb(ms),.source_ready(mr),.source_rdata(rd),.source_error(me),

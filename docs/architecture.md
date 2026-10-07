@@ -1,79 +1,68 @@
-# 系统架构
+# PtrocOS 系统架构
 
-本页描述生产示波器 `nexys_a7_top` / `rv32_core`。PtrocOS 使用独立的 RV32IM CPU、SoC 与顶层，扩展接口见 [开发说明](ptrocos-development.md)。
-
-## 数据通路与 CPU
+PtrocOS 使用 Nexys A7-100T 的自研 RV32IM + Zicsr CPU、128 MiB DDR2、FreeRTOS、VGA、PS/2、SD 和音频。`ptrocos_soc` 用于基础及媒体固件，`ptrocos_elf_soc` 增加可写指令 RAM；对应板级顶层是 `ptrocos_nexys_a7_top` 和 `ptrocos_elf_nexys_a7_top`。
 
 ```text
-JB1 → 两级同步器 ┬→ live_scope → 16 位 LED 帧
-                ├→ edge_meter_scope → 周期 / 高电平 / 状态
-                └→ scope_capture → 4096×1 采集窗口 → MMIO → CPU
-JA1/2/3/4/7/8/9/10 ← 独立固定测试计数器
-CPU → 八位数码管 / UART
+RV32IM + Zicsr + CRC16.B
+├── ROM / RAM / ELF 指令 RAM
+├── CLINT：mtime / mtimecmp / MSIP
+├── ptrocos_mmio：GPIO / UART / timer / perf / 按键 / 数码管
+├── DDR word bus ← DMA
+│   └── word_bus_cdc → DDR2 AXI bridge → MIG → 128 MiB DDR2
+├── VGA 文本 / PS/2 键盘 / SD SPI / PCM 音频
+└── VGA DDR framebuffer → AXI read arbiter → MIG
 ```
 
-三个采样模块共享同一同步输入，独立于 CPU 工作。CPU 计算 `low_ticks` 和 `frequency_hz`，由 FreeRTOS 测量、UI、UART、采集四任务处理配置、显示和传输。
+JA/JB 未分配。示波器采集、边沿测量、实时波形、触发和固定测试信号已从本分支移除。RGB 灯通过 GPIO 寄存器由软件控制。
 
-`rv32_core` 为六级流水 RV32I + Zicsr：IF、ID、EX、数据请求、数据响应、WB。支持完整字节/半字/字访存、FENCE/FENCE.I、机器态 CSR、ECALL/EBREAK/MRET、`CRC16.B`、提交跟踪与性能计数器。前递选择在 ID 计算；JAL 在 ID 重定向，JALR/条件分支在 EX 重定向。加载结果在进入 WB 前选择，WB 前递直接使用寄存器输出；对齐检查使用专用有效地址路径。
+## CPU 与内存
 
-寄存器、CSR 与异常在 WB 提交，访存副作用在请求级发生。中断遇到已发出的访存时，阻止年轻指令与新请求，先让该访存退休，再进入中断；锁存中断原因，`mepc` 指向最后退休指令的下一 PC，避免返回后重复存储或读后清零。同步异常、MRET、FENCE.I 同样阻止年轻访存越过边界。
+CPU 时钟为 100 MHz，DDR UI 为 81.25 MHz，VGA 像素时钟为 25.2 MHz。RV32M 采用迭代乘除法；访存等待期间保持请求，完成时仅提交一次。CPU 保留精确 trap、中断、MRET 和自定义 `CRC16.B` 指令，未实现 cache、MMU 或进程隔离。
 
-CSR：`mstatus/misa/mie/mtvec/mscratch/mepc/mcause/mtval/mip/mhartid/mcycle/minstret`，计数器含高半 CSR。trap 覆盖非法指令、M-mode ECALL、EBREAK、指令/load/store 未对齐及 MSI/MTI。仅支持 M-mode，无 RV32M、S-mode、MMU、PMP 或 PLIC。
-
-取指 BRAM 在下降沿采样；EX 寄存地址后，请求级在上升沿访问同步 BRAM/MMIO，响应级保留元数据，再进入 WB。ROM/RAM 各 64 KiB，ROM 数据只读端口供 `.data` 复制及 `.rodata` 访问；RAM 栈顶 `0x10010000`，16 字节对齐。
-
-## MMIO
-
-| 地址 | 功能 |
+| 地址 | 用途 |
 | --- | --- |
-| `0x00000000..0x0000ffff` | ROM 数据只读端口 |
-| `0x10000000..0x1000ffff` | 数据 RAM |
-| `0x02000000` / `0x02004000` / `0x0200bff8` | CLINT msip / mtimecmp / mtime |
-| `0x40000000` | GPIO / 固件测试结果 |
-| `0x40001000` | UART |
-| `0x40002000` | 64 位计时器 |
-| `0x40004000` | 深度采集控制/状态 |
-| `0x40005000` | 实时波形 |
-| `0x40006000` | 性能计数器 |
-| `0x40007000` | 按钮/开关 |
-| `0x40008000` | 八位数码管 |
-| `0x40009000` | 边沿测量 |
-| `0x40010000..0x40013fff` | 4096 点采样窗口，每字 bit0 为样本 |
+| `0x00000000..0x0000ffff` | 64 KiB 固件 ROM；数据侧只读，包含 `.rodata` 与初始化镜像 |
+| `0x00010000..0x00013fff` | ELF SoC 的 16 KiB 可写指令 RAM |
+| `0x02000000` 页 | CLINT；MSIP `+0x0000`，mtimecmp `+0x4000`，mtime `+0xbff8` |
+| `0x10000000..0x1000ffff` | 系统 RAM；实际软件布局以 `sw/ptrocos/linker.ld` 为准 |
+| `0x80000000..0x87ffffff` | 128 MiB DDR2；越界访问返回 fault |
 
-`mip.MTIP/MSIP` 反映外设电平，`mie` 与 `mstatus.MIE` 在提交边界决定中断。UART RX FIFO 为 1024 字节；STATUS `0x40001004` 的 bit0..3 为 TX 就绪、RX 非空、粘滞溢出、RX 满。写 bit2=1 清溢出；满且无同时出队时丢弃新字节。
+ELF 指令 RAM 使用四个 RAMB36E1、下降沿端口及关联于 CPU 时钟的半周期路径。受信任 ELF 应用以 M-mode 运行，调用约定与装载检查见 [ELF 文档](ptrocos-elf.md)。
 
-## 采样与测量
+## 外设地址
 
-实时波形在 AUTO/NORMAL/SINGLE 下把所选边沿对齐 LED7；FREE 每 16 点发布一帧，HOLD 停止发布，AUTO 无触发时强制刷新。时基由 `sample_div` 控制。
+清理保留已有外设基址。公共外设由 `src/rtl/bus/ptrocos_mmio.v` 解码；DMA、视频、键盘、SD 与音频由 SoC 独立解码。
 
-深度采集固定 4096 点、触发位置 2048，触发前用环形窗口保留历史，完成后按时间顺序读取。`0x40004010` / `0x40004020` 只读返回深度/预触发点数；`0x4000400c` 配置时基。边沿检测每 10 ns 进行，采样写入仍按分频间隔。
+| 基址 | 外设 | 主要寄存器或文档 |
+| --- | --- | --- |
+| `0x40000000` | GPIO | `+0x00` LED，`+0x04` 开关，`+0x08` 按键，`+0x0c` 固件结果，`+0x10` RGB |
+| `0x40001000` | UART | `+0x00` TX，`+0x04` 状态，`+0x08` RX；115200 8N1、接收 FIFO |
+| `0x40002000` | timer | 只读运行计数；FreeRTOS tick 使用 CLINT |
+| `0x40006000` | 性能计数器 | cycle/instret/stall/forward/flush/branch/taken/CRC；写 `+0x24` 清零 |
+| `0x40007000` | 按键/开关 | `+0x00` 去抖按键，读 `+0x04` 取出并清事件，`+0x08` 同步开关 |
+| `0x40008000` | 数码管 | `+0x00/+0x04` 八位编码，`+0x08` 小数点，`+0x0c` 使能 |
+| `0x4000a000` | DMA | [开发说明](ptrocos-development.md) |
+| `0x4000b000` | VGA 文本控制 | [文本控制台](ptrocos-text.md) |
+| `0x4000c000` | PS/2 键盘 | [文本控制台](ptrocos-text.md) |
+| `0x4000d000` | SD SPI | [存储](ptrocos-storage.md) |
+| `0x4000e000` | DDR 图形控制 | [图形](ptrocos-graphics.md) |
+| `0x4000f000` | PCM 音频 | [媒体](ptrocos-media.md) |
+| `0x40010000..0x40013fff` | VGA 文本单元窗口 | [文本控制台](ptrocos-text.md) |
 
-启动时锁存触发边沿与时基，分别从 `0x40004024` / `0x40004028` 读取；随后配置只影响下一次采集。清除/重启优先于同拍采样与触发，防止取消后重新置完成。
+已撤销的 `0x40004000`、`0x40005000`、`0x40009000` 页面读零、忽略写入。原采集窗口地址如今由 VGA 文本单元使用，保留现有 PtrocOS 文本接口。
 
-边沿测量给出 `period_ticks/high_ticks/edge_age/valid/signal_present`，可选四周期平均，动态无信号超时会清有效状态。固件两次读取周期且一致后更新快照，计算 `low=max(period-high,0)`、`frequency=floor(100000000/period)`；除法由 CPU 执行。
+GPIO 的 `+0x10` 为六位 RGB 输出：bit0/1/2 对应 RGB0 的 R/G/B，bit3/4/5 对应 RGB1 的 R/G/B，高位忽略，复位全灭。LED 与 RGB 独立，可用 `PTROCOS_MMIO32(PTROCOS_RGB_ADDR)` 写入。GPIO 原有四个寄存器的行为保持不变；按键与开关继续使用 `input_sync` 两级同步器。
 
-## FreeRTOS 与采集控制
+## 软件与第三方代码
 
-GCC 目标为 `rv32i_zicsr/ilp32`，使用官方 FreeRTOS 11.3.1 RISC-V port，CLINT MTI 驱动 1 kHz tick。启动代码设置 gp/sp、复制 `.data`、清 BSS 并安装 mtvec。测量快照用单元素覆盖队列，采集/导出用任务通知，UART mutex 防止 shell、遥测、错误行与 CAP2 交错。
+`sw/ptrocos` 包含板级支持、裸机验证固件、FreeRTOS shell、存储、媒体和 ELF 应用支持。`sw/ptrocos/startup.S` 是裸机 trap 入口；`sw/ptrocos/os/startup.S` 安装 FreeRTOS trap 入口，`os/runtime.c` 提供 freestanding C 内存操作。`os/FreeRTOSConfig.h` 为系统配置。
 
-采集任务每 1 ms 检查完成与通知：新的 SINGLE 重启采集，已有导出请求跟随；重复导出合并。`c` 取消采集及待导出，优先于同时到达的其他请求。期限为 `1000 + ceil(4096 × active_sample_div / 100000)` ms；超时停止采集。CAP2 整帧发送期间保持 UART 锁，发送完再处理通知。
+FreeRTOS V11.3.1 内核位于 `third_party/freertos/kernel`，原 MIT 许可证和文件头完整保留，来源见同目录上级的 `PROVENANCE.md`。FatFs 位于 `third_party/fatfs`，字体位于 `third_party/font8x8`。`sw/freertos/README.md` 仅保留为快速启动链接的兼容说明。
 
-当前裁剪配置启用任务、队列、互斥量、计数信号量、动态分配和通知；软件定时器、静态分配及部分任务 API 关闭，未收录事件组/流缓冲区实现。验收范围限于当前四任务应用。
+## 时序与验收
 
-## CAP2
+`create_ptrocos_project.tcl` 列出实际 RTL 和约束，禁用自动增量检查点。CPU/DDR 和视频跨域使用 held-payload mailbox，payload 路径限制为 10 ns；不对整个时钟域设置假路径。MIG、像素时钟、ELF 半周期路径仍参与时序分析。
 
-小端包：26 字节头 + 512 字节位打包样本 + 2 字节 CRC16。
+`finalize_ptrocos_timing.tcl` 检查时钟、CDC 覆盖、ELF RAM 和音频开漏输出，保存 routed checkpoint 及报告，并要求 setup WNS ≥ +0.100 ns、非负 hold/pulse、无阻断 DRC。自动物理优化同时针对 CPU、DDR UI 和像素时钟增加临时 setup 余量，报告前恢复正常约束。生成位流前由 `check_routed_timing.tcl` 再检查 setup/hold。
 
-```text
-magic[4] version[1] flags[1] count[2] sample_div[4]
-trigger_index[2] period[4] high[4] frequency[4]
-packed_samples[512] crc16[2]
-```
-
-period/high/frequency 来自启动时测量快照，flags/sample_div 来自该次硬件锁存参数，修改开关不会重新标注旧样本。low 由客户端计算。CRC 初值 `0xffff`、多项式 `0xa001`，覆盖头与样本，固件逐字节执行 `CRC16.B`。
-
-## 时序与位流门槛
-
-GUI/批处理共用 `configure_timing.tcl`：ExtraPostPlacementOpt、AggressiveExplore；布线 WNS 在 −0.500～+0.100 ns 且未达标时，仅重试一次物理优化与 NoTimingRelaxation 布线。`finalize_timing.tcl` 保存报告/检查点并要求 **WNS ≥ +0.100 ns、WHS ≥ 0、无 Error/Critical Warning DRC**，生成位流前复查。
-
-CPU 为 100 MHz，下降沿取指半周期路径按 5 ns 分析，无内部假路径或多周期例外。通过的位流发布到 `build/vivado/rv32_realtime_scope.bit`，报告在 `build/vivado/reports/`。2026-10-05 两次干净构建为 WNS +0.315 ns、WHS +0.061 ns，历史报告与输入哈希位于 `build/timing_closure/`。修改 RTL、固件或工具后需重新实现，历史数值不能代替新构建验收。
+固件、RTL 仿真与物理板卡验收分别记录。回归入口见 [仿真验证](../src/sim/README.md)，最新验证范围和物理待验项目见 [开发说明](ptrocos-development.md#验证边界)。

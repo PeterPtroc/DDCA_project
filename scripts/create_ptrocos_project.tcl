@@ -1,4 +1,4 @@
-# Independent board project. The frozen CPU/project/constraints are read only.
+# PtrocOS board project; explicit RTL and board constraint lists.
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 cd $root
@@ -8,7 +8,13 @@ if {![file isfile $firmware] || [file size $firmware]==0} {
     error "Build scripts/build_ptrocos.ps1 before creating the board project"
 }
 set_msg_config -id {Synth 8-4445} -new_severity ERROR
-if {$ptrocos_firmware eq "ddr2"} {set project_folder ptrocos_vivado} else {set project_folder ptrocos_${ptrocos_firmware}_vivado}
+if {[info exists ptrocos_project_folder]} {
+    set project_folder $ptrocos_project_folder
+} elseif {$ptrocos_firmware eq "ddr2"} {
+    set project_folder ptrocos_vivado
+} else {
+    set project_folder ptrocos_${ptrocos_firmware}_vivado
+}
 set out [file join $root build $project_folder]
 file mkdir $out
 create_project ptrocos $out -part xc7a100tcsg324-1 -force

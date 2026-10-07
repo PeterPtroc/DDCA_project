@@ -14,7 +14,6 @@ if($ToolchainPrefix) {
     & "$PSScriptRoot/build_ptrocos.ps1" -Firmware perf -ToolchainPrefix $ToolchainPrefix
 }
 if(-not (Test-Path -LiteralPath build/hex/ptrocos_perf.hex)) {throw 'Build perf firmware first'}
-Invoke-Checked 'git' @('diff','--exit-code','2894f42','--','src/rtl','sw/freertos','sw/ptrocos/media','sw/ptrocos/graphics.c')
 if(-not $RunOnly) {
     $sources=@(Get-Content scripts/ptrocos_sources.txt)+@('src/sim/axi_sparse_memory.sv','src/sim/tb_ptrocos_perf.sv')
     Invoke-Checked (Join-Path $VivadoBin 'xvlog.bat') (@('--nolog','--sv','-work','perf_soc')+$sources)

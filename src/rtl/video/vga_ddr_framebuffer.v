@@ -28,7 +28,7 @@ module vga_ddr_framebuffer #(
   localparam ROW_BEATS=WIDTH/8;
   localparam MONO_BEATS=((WIDTH+3)/4+127)/128;
   localparam MONO_HEIGHT=(HEIGHT+3)/4;
-  localparam IDLE=0,PREPARE=1,ADDRESS=2,DATA=3,COMPLETE=4;
+  localparam IDLE=0,CALC=1,PREPARE=2,ADDRESS=3,DATA=4,COMPLETE=5;
   (* ram_style="block" *) reg [127:0] lines[0:511];
   wire cv,cw;wire [31:0] ca,cd;wire [3:0] cs;reg [31:0] cr;
   word_bus_cdc register_cdc (
@@ -82,6 +82,9 @@ module vga_ddr_framebuffer #(
   reg pending,pending_enable,active_enable,config_fault,dma_fault,underrun_sticky;
   reg [31:0] swaps,frames,underflow_snapshot,read_beats,read_errors;
   reg [31:0] row_address;
+  // Latch the mailbox result before entering the row-address multiplier. This
+  // keeps the CDC valid pulse out of the long UI-clock address path.
+  reg [31:0] row_base_latched,row_stride_latched,row_index_latched;
   reg [7:0] remaining,burst_count,received;
   reg [6:0] beat_base;
   reg row_bad;
@@ -145,6 +148,7 @@ module vga_ddr_framebuffer #(
       config_fault<=0;dma_fault<=0;underrun_sticky<=0;swaps<=0;frames<=0;
       underflow_snapshot<=0;read_beats<=0;read_errors<=0;
       row_address<=0;remaining<=0;burst_count<=1;received<=0;beat_base<=0;row_bad<=0;
+      row_base_latched<=0;row_stride_latched<=0;row_index_latched<=0;
     end else begin
       // Close two whole lines early, leaving more than the CDC latency before
       // visible pixels even when an AXI transaction finishes near the deadline.
@@ -182,11 +186,19 @@ module vga_ddr_framebuffer #(
           if(!active_enable || row_epoch[choice]!=active_epoch || row_number[choice]>=HEIGHT) begin
             row_bad<=1;state<=COMPLETE;
           end else begin
-            row_address<=active_base+(active_mono ? (row_number[choice]>>2) : row_number[choice])*active_stride;
-            state<=PREPARE;
+            row_base_latched<=active_base;
+            row_stride_latched<=active_stride;
+            row_index_latched<=active_mono ? (row_number[choice]>>2) : row_number[choice];
+            state<=CALC;
           end
         end
-        PREPARE:begin burst_count<=planned_count;received<=0;state<=ADDRESS;end
+        CALC:begin
+          row_address<=row_base_latched+row_index_latched*row_stride_latched;
+          state<=PREPARE;
+        end
+        PREPARE:begin
+          burst_count<=planned_count;received<=0;state<=ADDRESS;
+        end
         ADDRESS:if(axi_arready) state<=DATA;
         DATA:if(axi_rvalid) begin
           read_beats<=read_beats+1'b1;

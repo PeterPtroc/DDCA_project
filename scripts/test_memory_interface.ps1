@@ -26,10 +26,6 @@ function Invoke-Simulation {
         throw "Simulation $Top failed or missing marker $Marker"
     }
 }
-Invoke-Checked 'git' @('diff', '--exit-code', '191da2f0ea6485f6d6bb140418bf774b669e792a', '--',
-    'src/rtl/cpu/rv32_core.v', 'src/rtl/cpu/rv32im_core.v', 'src/rtl/cpu/rv32im_decoder.v',
-    'src/rtl/cpu/rv32m_unit.v', 'src/rtl/cpu/decoder.v', 'src/rtl/top/soc_top.v',
-    'src/rtl/top/nexys_a7_top.v', 'scripts/create_vivado_project.tcl', 'scripts/test.ps1')
 Invoke-Checked $Python @('sw/tools/gen_rv32m_tests.py', 'build/rv32m')
 Invoke-Checked $Python @('sw/tools/rv32m_ref.py', 'build/rv32m/isa.hex', 'build/rv32m/isa.reference.csv')
 $sources = @('alu', 'crc16_unit', 'decoder', 'hazard_unit', 'imm_gen', 'regfile',

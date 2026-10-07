@@ -9,7 +9,6 @@ function Invoke-Checked([string]$Command,[string[]]$Arguments) {
 if($ToolchainPrefix) {& "$PSScriptRoot/build_ptrocos.ps1" -Firmware storage -ToolchainPrefix $ToolchainPrefix}
 if(-not (Test-Path -LiteralPath 'build/hex/ptrocos_storage.hex')) {throw 'Build storage firmware first.'}
 Invoke-Checked 'python.exe' @('sw/tools/gen_fatfs_image.py')
-Invoke-Checked 'git' @('diff','--exit-code','--diff-filter=MDRT','80cc06f','--','src/rtl','scripts','constraints','sw/freertos')
 $sources=@(Get-Content -LiteralPath 'scripts/ptrocos_sources.txt')+@('src/sim/axi_sparse_memory.sv',
     'src/sim/sd_spi_card_model.sv','src/sim/tb_ptrocos_storage.sv')
 Invoke-Checked (Join-Path $VivadoBin 'xvlog.bat') (@('--nolog','--sv','-work','storage_soc')+$sources)

@@ -33,7 +33,7 @@ module tb_ptrocos_video #(parameter PC_STYLE=0);
       .scan_arvalid(vv),.scan_arready(vr),.scan_rdata(vd),.scan_rresp(vp),
       .scan_rlast(vvlast),.scan_rvalid(vvvalid),.scan_rready(vvready),
       .vga_red(red),.vga_green(green),.vga_blue(blue),.vga_hsync(hsync),.vga_vsync(vsync),
-      .clk(clk),.rst(rst),.sw(16'd0),.btn(5'd0),.capture_in(8'd0),.uart_rx(uart_rx),.uart_tx(uart_tx),
+      .clk(clk),.rst(rst),.sw(16'd0),.btn(5'd0),.uart_rx(uart_rx),.uart_tx(uart_tx),
       .sd_miso(sd_miso),.sd_cd_n(!attached),.sd_sck(sd_sck),.sd_mosi(sd_mosi),.sd_cs_n(sd_cs_n),.sd_reset(sd_reset),
       .pixel_clk(pclk),.pixel_rst(rst),.ps2_clk(ps2_clk),.ps2_data(ps2_data),
       .led(),.seg_an(),.seg(),.seg_dp(),.rgb0_r(),.rgb0_g(),.rgb0_b(),.rgb1_r(),.rgb1_g(),.rgb1_b(),

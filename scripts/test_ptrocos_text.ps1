@@ -8,11 +8,6 @@ function Invoke-Checked([string]$Command,[string[]]$Arguments) {
 }
 if($ToolchainPrefix) {& "$PSScriptRoot/build_ptrocos.ps1" -Firmware text -ToolchainPrefix $ToolchainPrefix}
 if(-not (Test-Path -LiteralPath 'build/hex/ptrocos_text.hex')) {throw 'Build text firmware first.'}
-Invoke-Checked 'git' @('diff','--exit-code','191da2f','--',
-    'src/rtl/cpu/rv32_core.v','src/rtl/cpu/rv32im_core.v','src/rtl/cpu/rv32im_decoder.v',
-    'src/rtl/cpu/rv32m_unit.v','src/rtl/cpu/decoder.v','src/rtl/top/soc_top.v',
-    'src/rtl/top/nexys_a7_top.v','scripts/create_vivado_project.tcl','scripts/test.ps1',
-    'constraints/nexys_a7_100t.xdc','sw/freertos')
 $sources=@(Get-Content -LiteralPath 'scripts/ptrocos_sources.txt')+@('src/sim/axi_sparse_memory.sv','src/sim/tb_ptrocos_text.sv')
 Invoke-Checked (Join-Path $VivadoBin 'xvlog.bat') (@('--nolog','--sv','-work','text_soc')+$sources)
 foreach($top in @('tb_ptrocos_text','tb_ptrocos_text_alt')) {

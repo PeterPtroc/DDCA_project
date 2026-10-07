@@ -1,4 +1,4 @@
-# Generate the experiment's MIG independently of the original Vivado project.
+# Generate the PtrocOS MIG and its simulation model.
 set root [file normalize [file join [file dirname [info script]] ..]]
 cd $root
 set out [file join $root build ptrocos_ddr2]

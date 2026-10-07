@@ -7,9 +7,6 @@ Set-StrictMode -Version Latest
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
-if (-not (Test-Path -LiteralPath "build\hex\freertos.hex")) {
-    throw "FreeRTOS firmware is required. Run scripts\build_freertos.ps1 or scripts\test_freertos.ps1 first."
-}
 
 function Invoke-Checked {
     param([string]$Command, [string[]]$Arguments)
@@ -47,13 +44,13 @@ function Invoke-XSimTest {
     $snapshot = "${Top}_sim"
     $sources = @($script:RtlSources) + (Resolve-Path -LiteralPath $Testbench).Path
     Invoke-Checked $script:Xvlog (@("--nolog", "-work", "work") + $sources)
-    Invoke-Checked $script:Xelab @("--nolog", $Top, "-s", $snapshot, "-debug", "typical")
+    Invoke-Checked $script:Xelab @("--nolog", "--timescale", "1ns/1ps", $Top, "-s", $snapshot, "-debug", "typical")
 
     $output = & $script:Xsim $snapshot "--nolog" "-runall" 2>&1
     $exitCode = $LASTEXITCODE
     $output | ForEach-Object { Write-Host $_ }
     if ($exitCode -ne 0) { throw "XSim test $Top failed with exit code $exitCode" }
-    if (($output -join "`n") -notmatch [regex]::Escape($ExpectedMarker)) {
+    if (($output -join "`n") -match "Fatal:|FATAL_ERROR" -or ($output -join "`n") -notmatch [regex]::Escape($ExpectedMarker)) {
         throw "XSim test $Top did not emit: $ExpectedMarker"
     }
 }
@@ -63,7 +60,7 @@ function Invoke-DifferentialTests {
     $testbench = (Resolve-Path -LiteralPath "src\sim\tb_cpu_trace.v").Path
     $sources = @($script:RtlSources) + $testbench
     Invoke-Checked $script:Xvlog (@("--nolog", "-work", "work") + $sources)
-    Invoke-Checked $script:Xelab @("--nolog", "tb_cpu_trace", "-s", $snapshot, "-debug", "typical")
+    Invoke-Checked $script:Xelab @("--nolog", "--timescale", "1ns/1ps", "tb_cpu_trace", "-s", $snapshot, "-debug", "typical")
 
     New-Item -ItemType Directory -Path "build\trace" -Force | Out-Null
     New-Item -ItemType Directory -Path "build\benchmark" -Force | Out-Null
@@ -101,10 +98,9 @@ foreach ($name in @("isa_test", "hazard_test", "crc_test", "machine_test")) {
 }
 
 Invoke-Checked $Python @("-m", "unittest", "discover", "-s", "sw\tools", "-p", "test_*.py")
-Invoke-Checked $Python @("-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py")
 
 $RtlSources = @(
-    "src\rtl\bus\mmio_decoder.v",
+    "src\rtl\bus\ptrocos_mmio.v",
     "src\rtl\cpu\alu.v",
     "src\rtl\cpu\crc16_unit.v",
     "src\rtl\cpu\decoder.v",
@@ -118,31 +114,21 @@ $RtlSources = @(
     "src\rtl\peripheral\clint.v",
     "src\rtl\peripheral\button_debounce.v",
     "src\rtl\peripheral\button_mmio.v",
-    "src\rtl\peripheral\edge_meter_scope.v",
-    "src\rtl\peripheral\fixed_test_signals.v",
     "src\rtl\peripheral\gpio_mmio.v",
     "src\rtl\peripheral\input_sync.v",
-    "src\rtl\peripheral\live_scope.v",
     "src\rtl\peripheral\perf_counter.v",
-    "src\rtl\peripheral\rgb_status.v",
-    "src\rtl\peripheral\scope_capture.v",
     "src\rtl\peripheral\sevenseg.v",
     "src\rtl\peripheral\timer_mmio.v",
     "src\rtl\peripheral\uart_mmio.v",
     "src\rtl\peripheral\uart_rx.v",
-    "src\rtl\peripheral\uart_tx.v",
-    "src\rtl\top\nexys_a7_top.v",
-    "src\rtl\top\soc_top.v"
+    "src\rtl\peripheral\uart_tx.v"
 ) | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
 
 Invoke-DifferentialTests
 Invoke-XSimTest "tb_machine_mode" "src\sim\tb_machine_mode.v" "MACHINE MODE PASS"
 Invoke-XSimTest "tb_precise_irq" "src\sim\tb_precise_irq.v" "PRECISE IRQ PASS"
 Invoke-XSimTest "tb_uart_fifo" "src\sim\tb_uart_fifo.v" "UART FIFO PASS"
-Invoke-XSimTest "tb_freertos_smoke" "src\sim\tb_freertos_smoke.v" "FREERTOS SMOKE PASS"
-Invoke-XSimTest "tb_freertos_display" "src\sim\tb_freertos_display.v" "FREERTOS DISPLAY PASS"
-Invoke-XSimTest "tb_freertos_scope" "src\sim\tb_freertos_scope.v" "FREERTOS SCOPE PASS"
-Invoke-XSimTest "tb_freertos_uart_burst" "src\sim\tb_freertos_scope.v" "FREERTOS UART BURST PASS"
-Invoke-XSimTest "tb_scope_core" "src\sim\tb_scope_core.v" "SCOPE CORE PASS"
 
-Write-Host "COURSE DESIGN TEST PASS"
+Invoke-XSimTest "tb_ptrocos_mmio" "src\sim\tb_ptrocos_mmio.v" "PTROCOS MMIO PASS"
+
+Write-Host "CPU AND PTROCOS MMIO TEST PASS"

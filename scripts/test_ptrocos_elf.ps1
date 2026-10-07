@@ -14,7 +14,6 @@ if($ToolchainPrefix) {
     & "$PSScriptRoot/build_ptrocos.ps1" -Firmware elf -ToolchainPrefix $ToolchainPrefix
 }
 if(-not (Test-Path -LiteralPath build/hex/ptrocos_elf.hex)) {throw 'Build ELF firmware first'}
-Invoke-Checked 'git' @('diff','--exit-code','171dca2','--','src/rtl/cpu','src/rtl/top/ptrocos_soc.v','src/rtl/memory/imem.v','sw/freertos')
 if($NativeOnly) {
     Invoke-Checked 'python.exe' @('sw/tools/check_elf_decode.py')
     Invoke-Checked 'python.exe' @('sw/tools/check_elf_storage.py')

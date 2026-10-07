@@ -14,7 +14,6 @@ if($ToolchainPrefix) {
     if($RunOnly) {throw 'Build before RunOnly.'}
     & "$PSScriptRoot/build_ptrocos.ps1" -Firmware media -ToolchainPrefix $ToolchainPrefix
 }
-Invoke-Checked 'git' @('diff','--exit-code','--diff-filter=MDRT','80cc06f','--','src/rtl','scripts','constraints','sw/freertos')
 $tests=@()
 if(-not $SocOnly) {
     if(-not $RunOnly) {

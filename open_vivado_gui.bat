@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 
 rem ============================================================
-rem DDCA Project - Vivado GUI Launcher
+rem PtrocOS - Vivado GUI Launcher
 rem
 rem This BAT file must be placed in the repository root:
 rem
@@ -23,10 +23,10 @@ if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 set "LOCAL_CONFIG=%ROOT%\scripts\vivado_local.bat"
 set "CREATE_TCL=%ROOT%\scripts\create_vivado_project.tcl"
 set "OPEN_GUI_TCL=%ROOT%\scripts\open_vivado_project.tcl"
-set "PROJECT_FILE=%ROOT%\build\vivado\rv32_realtime_scope.xpr"
+set "PROJECT_FILE=%ROOT%\build\vivado\ptrocos.xpr"
 
 echo ============================================================
-echo DDCA Project - Vivado Launcher
+echo PtrocOS - Vivado Launcher
 echo ============================================================
 echo Project root:
 echo   %ROOT%

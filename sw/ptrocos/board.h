@@ -6,6 +6,8 @@
 #define PTROCOS_DDR_BASE 0x80000000U
 #define PTROCOS_DDR_BYTES 0x08000000U
 #define PTROCOS_DMA_BASE 0x4000a000U
+#define PTROCOS_GPIO_BASE 0x40000000U
+#define PTROCOS_RGB_ADDR (PTROCOS_GPIO_BASE + 0x10U)
 #define PTROCOS_MMIO32(a) (*(volatile uint32_t *)(uintptr_t)(a))
 void ptrocos_uart_putc(char value);
 void ptrocos_uart_puts(const char *text);

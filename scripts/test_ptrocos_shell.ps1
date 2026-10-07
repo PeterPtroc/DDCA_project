@@ -9,7 +9,6 @@ function Invoke-Checked([string]$Command,[string[]]$Arguments) {
 if($ToolchainPrefix) {& "$PSScriptRoot/build_ptrocos.ps1" -Firmware shell -ToolchainPrefix $ToolchainPrefix}
 if(-not (Test-Path -LiteralPath 'build/hex/ptrocos_shell.hex')) {throw 'Build shell firmware first.'}
 Invoke-Checked 'python.exe' @('sw/tools/check_tty.py')
-Invoke-Checked 'git' @('diff','--exit-code','--diff-filter=MDRT','80cc06f','--','src/rtl','scripts','constraints','sw/freertos')
 $sources=@(Get-Content -LiteralPath 'scripts/ptrocos_sources.txt')+@('src/sim/axi_sparse_memory.sv','src/sim/tb_ptrocos_shell.sv')
 Invoke-Checked (Join-Path $VivadoBin 'xvlog.bat') (@('--nolog','--sv','-work','shell_soc')+$sources)
 foreach($top in @('tb_ptrocos_shell','tb_ptrocos_shell_alt')) {

@@ -1,10 +1,10 @@
 # PtrocOS 开发与使用
 
-PtrocOS 是 Nexys A7-100T 的独立 RV32IM + Zicsr 实验系统，使用 FreeRTOS 11.3.1，支持 DDR2/DMA、VGA/PS2、SD、文件与媒体、受信任 ELF 应用。未实现 cache。原生产 CPU、SoC、约束、固件及构建入口冻结于 `80cc06f144e8c954c662490dbeac25e489bfda8d`，扩展使用独立模块。
+PtrocOS 是 Nexys A7-100T 的独立 RV32IM + Zicsr 实验系统，使用 FreeRTOS 11.3.1，支持 DDR2/DMA、VGA/PS2、SD、文件与媒体、受信任 ELF 应用。未实现 cache。本分支只保留 PtrocOS 工程；示波器硬件、应用与导出工具已移除。FreeRTOS 内核位于 `third_party/freertos/kernel`，系统启动代码与运行时位于 `sw/ptrocos/os`。
 
 ## 构建与下载
 
-需要 Windows PowerShell、Python 3 和 Vivado 2024.2。GCC 与生产固件共用自动安装的固定工具链；自备工具链可传 `-ToolchainPrefix`。在仓库根目录执行：
+需要 Windows PowerShell、Python 3 和 Vivado 2024.2。GCC 使用自动安装的固定工具链；自备工具链可传 `-ToolchainPrefix`。在仓库根目录执行：
 
 ```powershell
 .\scripts\build_ptrocos.ps1 -Firmware elf
@@ -74,6 +74,12 @@ DMA 基址 `0x4000a000`：
 
 ## 验证边界
 
-2026-10-07 本地验证通过：`storage/graphics/media/video/elf` 五个固件构建、现有原生回归及 PC_STYLE=0 的文件/ELF SoC 仿真。日志为 `build/exfat-*.log`，复现入口见 [仿真验证](../src/sim/README.md#ptrocos)。历史完整记录位于 `build/ptrocos-validation/`，与构建产物一起受 Git 忽略，不随克隆分发。
+2026-10-07 本地验证通过：`storage/graphics/media/video/elf` 五个固件构建、现有原生回归及 PC_STYLE=0 的文件/ELF SoC 仿真。日志为 `build/exfat-*.log`，复现入口见 [仿真验证](../src/sim/README.md)。历史完整记录位于 `build/ptrocos-validation/`，与构建产物一起受 Git 忽略，不随克隆分发。
 
 当前 exFAT 固件尚未重建位流或上板。实卡文件/媒体/ELF、VGA 显示器、J8 模拟音频仍待验；物理键盘按用户要求延期。历史 UART 的 `no-card` 记录只说明当次状态。未取得最终 PASS 的补充视频回归不计通过。
+
+## 分支清理与兼容入口
+
+公共 MMIO 使用 `ptrocos_mmio`，GPIO/UART/timer/perf/按键/数码管地址保持不变。RGB 控制见 [系统架构](architecture.md)。JA/JB 未分配，板卡无需示波器跳线。
+
+根 README 的快速启动段落保留原文。`build_freertos.bat` / `scripts/build_freertos.ps1` 现在构建完整 PtrocOS ELF 固件，并生成 `build/hex/freertos.hex` 兼容副本；`open_vivado_gui.bat` / `scripts/build_bitstream.tcl` 使用相同 PtrocOS ELF 顶层，在 `build/vivado/ptrocos.xpr` 建工程，位流仍发布到 `build/vivado/rv32_realtime_scope.bit`。这些名称仅用于兼容。GUI 每次启动重新生成工程以同步源码清单；正式 PtrocOS 入口与默认固件见上文。

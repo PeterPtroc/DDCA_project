@@ -11,3 +11,5 @@ third_party/fatfs/diskio.h -text -whitespace
 third_party/fatfs/ffunicode.c -text -whitespace
 third_party/fatfs/ff.c -text -whitespace
 third_party/fatfs/*.diff -text -whitespace
+# Retain the imported FreeRTOS kernel's original whitespace.
+third_party/freertos/kernel/** -whitespace

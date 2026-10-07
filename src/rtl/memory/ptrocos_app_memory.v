@@ -1,6 +1,6 @@
 `default_nettype none
 // Independent 16 KiB writable application window. Both BRAM ports use the
-// falling edge: instruction fetch keeps the frozen CPU's original contract.
+// falling edge: instruction fetch keeps the CPU's synchronous memory contract.
 // CPU data transactions cross through a held-payload mailbox and wait for the
 // registered BRAM result. No mixed-edge RAM inference or CPU edits are needed.
 module ptrocos_app_memory (

@@ -1,4 +1,4 @@
-# Nexys A7-100T pin constraints for nexys_a7_top.
+# Nexys A7-100T pin constraints for PtrocOS board tops.
 # Source: https://github.com/Digilent/digilent-xdc/blob/master/Nexys-A7-100T-Master.xdc
 
 ## The original pin-only file omitted configuration-bank voltage properties,
@@ -87,20 +87,9 @@ set_property -dict { PACKAGE_PIN T14 IOSTANDARD LVCMOS33 } [get_ports {seg_an[5]
 set_property -dict { PACKAGE_PIN K2  IOSTANDARD LVCMOS33 } [get_ports {seg_an[6]}]
 set_property -dict { PACKAGE_PIN U13 IOSTANDARD LVCMOS33 } [get_ports {seg_an[7]}]
 
-## Eight fixed test outputs on Pmod JA; JB1 remains the only scope input.
-set_property -dict { PACKAGE_PIN C17 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[0]}]
-set_property -dict { PACKAGE_PIN D18 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[1]}]
-set_property -dict { PACKAGE_PIN E18 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[2]}]
-set_property -dict { PACKAGE_PIN G17 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[3]}]
-set_property -dict { PACKAGE_PIN D17 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[4]}]
-set_property -dict { PACKAGE_PIN E17 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[5]}]
-set_property -dict { PACKAGE_PIN F18 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[6]}]
-set_property -dict { PACKAGE_PIN G18 IOSTANDARD LVCMOS33 } [get_ports {pmod_ja[7]}]
-set_property -dict { PACKAGE_PIN D14 IOSTANDARD LVCMOS33 } [get_ports {jb1}]
-
 ## The original file left board I/O without delays, producing TIMING-18 and
-## check_timing HIGH findings. These controls and capture pins are asynchronous,
+## check_timing HIGH findings. These controls are asynchronous,
 ## while the status/UART/PWM outputs have no external source-synchronous timing
 ## contract, so encode that intent explicitly instead of inventing I/O delays.
-set_false_path -from [get_ports {reset_n sw[*] btn[*] jb1 uart_rx}]
-set_false_path -to [get_ports {led[*] uart_tx pmod_ja[*] seg[*] seg_an[*] seg_dp rgb0_r rgb0_g rgb0_b rgb1_r rgb1_g rgb1_b}]
+set_false_path -from [get_ports {reset_n sw[*] btn[*] uart_rx}]
+set_false_path -to [get_ports {led[*] uart_tx seg[*] seg_an[*] seg_dp rgb0_r rgb0_g rgb0_b rgb1_r rgb1_g rgb1_b}]

@@ -1,19 +1,15 @@
 `default_nettype none
-// ELF-only SoC. Frozen CPU, ROM, prior SoC and board top stay unchanged.
+// PtrocOS computer SoC.
 module ptrocos_elf_soc #(
     parameter IMEM_HEX = "build/hex/ptrocos_elf.hex",
     parameter BUTTON_DEBOUNCE_BITS = 18,
     parameter UART_DIVIDER = 868,
-    parameter EDGE_MIN_TIMEOUT_TICKS = 10000000,
-    parameter EDGE_INITIAL_TIMEOUT_TICKS = 100000000,
-    parameter LIVE_AUTO_TIMEOUT_SAMPLES = 1024,
     parameter CPU_PC_NEXT_STYLE = 0
 ) (
     input wire clk,
     input wire rst,
     input wire [15:0] sw,
     input wire [4:0] btn,
-    input wire [7:0] capture_in,
     input wire uart_rx,
     input wire pixel_clk, pixel_rst, ps2_clk, ps2_data,
     input wire ui_clk,ui_rst,
@@ -143,20 +139,16 @@ module ptrocos_elf_soc #(
       .machine_timer_irq(machine_timer_irq_raw),
       .machine_software_irq(machine_software_irq)
   );
-  mmio_decoder #(
+  ptrocos_mmio #(
       .BUTTON_DEBOUNCE_BITS(BUTTON_DEBOUNCE_BITS),
-      .UART_DIVIDER(UART_DIVIDER),
-      .EDGE_MIN_TIMEOUT_TICKS(EDGE_MIN_TIMEOUT_TICKS),
-      .EDGE_INITIAL_TIMEOUT_TICKS(EDGE_INITIAL_TIMEOUT_TICKS),
-      .LIVE_AUTO_TIMEOUT_SAMPLES(LIVE_AUTO_TIMEOUT_SAMPLES)
+      .UART_DIVIDER(UART_DIVIDER)
   ) bus (
       .clk(clk), .rst(rst), .valid(dv && !app_sel && !ddr_sel && !dma_sel && !vga_reg_sel && !vga_cell_sel && !keyboard_sel && !sd_sel && !graphics_sel && !audio_sel), .we(dwe), .addr(da), .wdata(dw),
-      .sw(sw), .btn(btn), .capture_in(capture_in), .uart_rx_i(uart_rx),
+      .sw(sw), .btn(btn), .uart_rx_i(uart_rx),
       .retire(rv), .stall(es), .fwd_ex(ef),
       .fwd_wb(wf), .flush(fl), .branch(br), .branch_taken(bt), .crc(crc),
       .rdata(mmio_r), .led(led), .test_result(test_result), .uart_tx(uart_tx),
-      .capture_armed(),
-      .capture_triggered(), .capture_done(), .seg_an(seg_an),
+      .seg_an(seg_an),
       .seg(seg), .seg_dp(seg_dp), .rgb0_r(rgb0_r), .rgb0_g(rgb0_g),
       .rgb0_b(rgb0_b), .rgb1_r(rgb1_r), .rgb1_g(rgb1_g), .rgb1_b(rgb1_b)
   );

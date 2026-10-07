@@ -1,5 +1,5 @@
 `default_nettype none
-// Extend the frozen RV32I decoder without changing its source or behavior.
+// Extend the shared RV32I decoder with RV32M instructions.
 module rv32im_decoder (
     input wire [31:0] insn,
     output wire valid, uses_rs1, uses_rs2, reg_we,

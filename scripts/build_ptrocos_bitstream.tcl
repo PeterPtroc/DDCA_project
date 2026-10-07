@@ -9,6 +9,26 @@ foreach arg $argv {
 if {$ptrocos_firmware eq "ddr2"} {set project_folder ptrocos_vivado} else {set project_folder ptrocos_${ptrocos_firmware}_vivado}
 if {$reuse} {
     open_project [file join $root build $project_folder ptrocos.xpr]
+    # Refresh the RTL manifest: a reused project may still contain removed RTL.
+    set source_list [expr {$ptrocos_firmware eq "elf" ? "ptrocos_elf_sources.txt" : "ptrocos_sources.txt"}]
+    set board_top [expr {$ptrocos_firmware eq "elf" ? "ptrocos_elf_nexys_a7_top" : "ptrocos_nexys_a7_top"}]
+    set source_file [open [file join $script_dir $source_list] r]
+    set rtl_sources {}
+    foreach relative [split [string trim [read $source_file]] \n] {
+        lappend rtl_sources [file join $root [string trim $relative]]
+    }
+    close $source_file
+    lappend rtl_sources [file join $root src rtl top ${board_top}.v]
+    set old_rtl {}
+    foreach rtl [get_files -of_objects [get_filesets sources_1] -filter {FILE_TYPE == Verilog || FILE_TYPE == SystemVerilog}] {
+        if {[string match -nocase "[file join $root src rtl]/*" [file normalize $rtl]]} {
+            lappend old_rtl $rtl
+        }
+    }
+    if {[llength $old_rtl]} {remove_files $old_rtl}
+    add_files -norecurse $rtl_sources
+    set_property top $board_top [current_fileset]
+    set_property generic [list "IMEM_HEX=[file join $root build hex ptrocos_${ptrocos_firmware}.hex]" "CPU_PC_NEXT_STYLE=0"] [current_fileset]
     # Existing projects may predate the post-place ROM fanout hook.
     set rom_hook [file join $script_dir optimize_ptrocos_rom.tcl]
     if {![llength [get_files -quiet $rom_hook]]} {add_files -fileset utils_1 -norecurse $rom_hook}

@@ -24,19 +24,19 @@ New-Item -ItemType Directory -Path $Out,'build/hex' -Force | Out-Null
 $Flags=@('-march=rv32im_zicsr','-mabi=ilp32','-mcmodel=medany','-msmall-data-limit=0',
     '-O2','-g','-ffreestanding','-fno-builtin','-fdata-sections','-ffunction-sections','-Wall','-Wextra','-Werror','-Isw/ptrocos')
 $Objects=@()
-$Sources=@('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/freertos/runtime.c','sw/ptrocos/startup.S')
+$Sources=@('sw/ptrocos/board.c',"sw/ptrocos/${Firmware}_main.c",'sw/ptrocos/os/runtime.c','sw/ptrocos/startup.S')
 if($Firmware -eq 'text') {$Sources+=@('sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c')}
 if($Firmware -in @('shell','storage','graphics','media','video','elf')) {
-    $Flags+=@('-Isw/ptrocos/os','-Isw/freertos/kernel/include',
-        '-Isw/freertos/kernel/portable/GCC/RISC-V',
-        '-Isw/freertos/kernel/portable/GCC/RISC-V/chip_specific_extensions/RISCV_MTIME_CLINT_no_extensions')
+    $Flags+=@('-Isw/ptrocos/os','-Ithird_party/freertos/kernel/include',
+        '-Ithird_party/freertos/kernel/portable/GCC/RISC-V',
+        '-Ithird_party/freertos/kernel/portable/GCC/RISC-V/chip_specific_extensions/RISCV_MTIME_CLINT_no_extensions')
     $Sources=@('sw/ptrocos/board.c','sw/ptrocos/shell_main.c','sw/ptrocos/tty.c',
         'sw/ptrocos/shell.c','sw/ptrocos/keyboard.c','sw/ptrocos/text_console.c','sw/ptrocos/string_runtime.c',
-        'sw/freertos/runtime.c','sw/freertos/startup.S',
-        'sw/freertos/kernel/tasks.c','sw/freertos/kernel/queue.c','sw/freertos/kernel/list.c',
-        'sw/freertos/kernel/portable/MemMang/heap_4.c',
-        'sw/freertos/kernel/portable/GCC/RISC-V/port.c',
-        'sw/freertos/kernel/portable/GCC/RISC-V/portASM.S')
+        'sw/ptrocos/os/runtime.c','sw/ptrocos/os/startup.S',
+        'third_party/freertos/kernel/tasks.c','third_party/freertos/kernel/queue.c','third_party/freertos/kernel/list.c',
+        'third_party/freertos/kernel/portable/MemMang/heap_4.c',
+        'third_party/freertos/kernel/portable/GCC/RISC-V/port.c',
+        'third_party/freertos/kernel/portable/GCC/RISC-V/portASM.S')
 }
 if($Firmware -in @('storage','graphics','media','video','elf')) {
     # Keep the complete exFAT shell within the existing 64 KiB ROM.
@@ -66,7 +66,7 @@ if($Firmware -eq 'elf') {
 foreach($source in $Sources) {
     $object=Join-Path $Out ((($source -replace '[/\\]','_') -replace '\.[cS]$','.o'))
     # Keep compiler-generated memcpy/memset calls backed by native symbols.
-    $SourceFlags=if($source -eq 'sw/freertos/runtime.c') {@($Flags | Where-Object {$_ -ne '-flto'})} else {$Flags}
+    $SourceFlags=if($source -eq 'sw/ptrocos/os/runtime.c') {@($Flags | Where-Object {$_ -ne '-flto'})} else {$Flags}
     Invoke-Checked $Gcc ($SourceFlags+@('-c',$source,'-o',$object))
     $Objects+=$object
 }
