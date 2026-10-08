@@ -5,4 +5,6 @@ set ddca_publish_root [file normalize [file join [file dirname [info script]] ..
 set ddca_generated_bit [file join [pwd] nexys_a7_top.bit]
 set ddca_published_bit [file join $ddca_publish_root build vivado rv32_realtime_scope.bit]
 file copy -force $ddca_generated_bit $ddca_published_bit
+source [file join $ddca_publish_root scripts build_guard.tcl]
+ddca_guard finish bitstream $ddca_published_bit
 puts "BITSTREAM PASS: $ddca_published_bit"

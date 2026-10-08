@@ -5,6 +5,9 @@ set root [file normalize [file join $script_dir ..]]
 cd $root
 source [file join $script_dir check_firmware.tcl]
 set build_dir [file join $root build vivado]
+set project_file [file join $build_dir rv32_realtime_scope.xpr]
+ddca_guard prepare project $project_file
+ddca_guard begin project $project_file
 file mkdir $build_dir
 create_project rv32_realtime_scope $build_dir -part xc7a100tcsg324-1 -force
 # The course-design project deliberately lists every production RTL source.
@@ -44,4 +47,6 @@ add_files -fileset constrs_1 -norecurse [file join $root constraints nexys_a7_10
 set_property top nexys_a7_top [current_fileset]
 source [file join $script_dir configure_firmware.tcl]
 source [file join $script_dir configure_timing.tcl]
+ddca_configure_guard $project_file freertos [file join $build_dir rv32_realtime_scope.bit]
+ddca_guard finish project $project_file
 puts "Vivado project created at $build_dir"

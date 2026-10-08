@@ -13,13 +13,7 @@ if {$pc_next_style ni {0 1}} {
     error "PC_NEXT_STYLE must be 0 (PC CE) or 1 (pc_next)"
 }
 
-if {[file exists $project_file]} {
-    open_project $project_file
-} else {
-    source [file join $script_dir create_vivado_project.tcl]
-}
-source [file join $script_dir configure_firmware.tcl]
-source [file join $script_dir configure_timing.tcl]
+source [file join $script_dir open_vivado_project.tcl]
 # Preserve the absolute firmware path and any other existing generics.
 set build_generics {}
 foreach generic [get_property generic [get_filesets sources_1]] {

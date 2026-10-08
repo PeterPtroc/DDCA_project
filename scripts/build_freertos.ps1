@@ -10,6 +10,7 @@ Set-Location -LiteralPath $Root
 
 function Invoke-Checked {
     param([string]$Command, [string[]]$Arguments)
+    if ([IO.Path]::GetFileName($Command) -ieq "python.exe") {$Arguments=@("-E")+$Arguments}
     & $Command @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "$Command failed with exit code $LASTEXITCODE"
@@ -37,6 +38,8 @@ if (-not $PythonCommand) {
     throw "Python 3 is required to generate the firmware HEX. Install Python 3 and add python.exe to PATH."
 }
 $Python = $PythonCommand.Source
+$Hex = Join-Path $Root "build\hex\freertos.hex"
+Invoke-Checked $Python @("scripts/build_guard.py", "begin", "--kind", "firmware", "--file", $Hex)
 if (-not $ToolchainPrefix) { $ToolchainPrefix = $env:RISCV_TOOLCHAIN_PREFIX }
 if (-not $ToolchainPrefix) { $ToolchainPrefix = & "$PSScriptRoot\setup_toolchain.ps1" }
 
@@ -104,5 +107,6 @@ Invoke-Checked $Objcopy @("-O", "binary", $Elf, $Binary)
 Invoke-Checked $Python @("sw/tools/bin2hex.py", $Binary, $Hex, "--limit", "65536")
 & $Objdump -d -S $Elf | Set-Content -LiteralPath $Listing -Encoding ascii
 Invoke-Checked $Size @($Elf)
+Invoke-Checked $Python @("scripts/build_guard.py", "finish", "--kind", "firmware", "--file", $Hex)
 Write-Host "FREERTOS BUILD PASS: $Hex"
 
