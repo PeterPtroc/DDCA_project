@@ -13,6 +13,10 @@ set board_top [expr {$firmware eq "elf" ? "ptrocos_elf_nexys_a7_top" : "ptrocos_
 set checkpoint [expr {$verify_only ? [file join $out ptrocos_routed.dcp] :
     [file join $out ptrocos.runs impl_1 ${board_top}_placed.dcp]}]
 if {![file isfile $checkpoint]} {error "Missing checkpoint: $checkpoint"}
+source [file join $script_dir build_guard.tcl]
+ddca_guard check project [file join $out ptrocos.xpr] $firmware
+ddca_guard check checkpoint $checkpoint $firmware
+ddca_guard begin bitstream [file join $out ptrocos_${firmware}.bit] $firmware
 open_project [file join $out ptrocos.xpr]
 open_checkpoint $checkpoint
 if {$firmware in {graphics media video elf} && !$verify_only} {
@@ -27,5 +31,6 @@ if {!$verify_only} {
 }
 source [file join $script_dir finalize_ptrocos_timing.tcl]
 write_bitstream -force [file join $out ptrocos_${firmware}.bit]
+ddca_guard finish bitstream [file join $out ptrocos_${firmware}.bit] $firmware
 puts "PTROCOS RESUMED BITSTREAM PASS: [file join $out ptrocos_${firmware}.bit]"
 close_project

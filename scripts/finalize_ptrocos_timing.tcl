@@ -188,4 +188,8 @@ foreach violation [get_drc_violations -quiet] {
     }
 }
 if {[llength $blocking]} { error "Blocking DRC: $blocking" }
+source [file join $script_dir build_guard.tcl]
+source [file join $out build_guard_config.tcl]
+ddca_guard seal checkpoint [file join $out ptrocos_routed.dcp] $ddca_guard_variant \
+    [list --basis $ddca_guard_bitstream]
 puts "PTROCOS ROUTED TIMING/DRC PASS"

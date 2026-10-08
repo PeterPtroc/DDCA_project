@@ -5,6 +5,8 @@ set firmware ddr2
 if {[llength $argv]==2 && [lindex $argv 1] in {ddr2 text shell storage graphics media video elf}} {set firmware [lindex $argv 1]}
 if {$firmware eq "ddr2"} {set folder ptrocos_vivado} else {set folder ptrocos_${firmware}_vivado}
 set bitstream [file join $root build $folder ptrocos_${firmware}.bit]
+source [file join $root scripts build_guard.tcl]
+ddca_guard check bitstream $bitstream $firmware
 if {![file isfile $bitstream]} { error "Run build_ptrocos_bitstream.tcl first" }
 if {[llength $argv]<1 || [llength $argv]>2 || ([llength $argv]==2 && [lindex $argv 1] ni {ddr2 text shell storage graphics media video elf})} { error "Specify target URL, optionally ddr2/text/shell/storage/graphics/media/video/elf firmware" }
 open_hw_manager

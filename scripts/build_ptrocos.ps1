@@ -3,6 +3,9 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $Root=Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
+$Hex=Join-Path $Root "build/hex/ptrocos_$Firmware.hex"
+& python.exe -E "$PSScriptRoot/build_guard.py" begin --kind firmware --file $Hex --variant $Firmware
+if($LASTEXITCODE -ne 0) {throw 'Cannot start PtrocOS firmware build'}
 if(-not $ToolchainPrefix) {$ToolchainPrefix=$env:RISCV_TOOLCHAIN_PREFIX}
 if(-not $ToolchainPrefix) {$ToolchainPrefix=& "$PSScriptRoot/setup_toolchain.ps1"}
 function Find-Tool([string]$Suffix) {
@@ -14,6 +17,7 @@ function Find-Tool([string]$Suffix) {
     throw "RISC-V tool missing: $candidate"
 }
 function Invoke-Checked([string]$Command,[string[]]$Arguments) {
+    if ([IO.Path]::GetFileName($Command) -ieq "python.exe") {$Arguments=@("-E")+$Arguments}
     & $Command @Arguments
     if($LASTEXITCODE -ne 0) {throw "$Command failed: $LASTEXITCODE"}
 }
@@ -80,4 +84,5 @@ Invoke-Checked $Python @('sw/tools/bin2hex.py',"$Out/ptrocos_$Firmware.bin","bui
 if($LASTEXITCODE -ne 0) {throw 'objdump failed'}
 Invoke-Checked $Size @($Elf)
 if($Firmware -eq 'elf') {Invoke-Checked $Python @('sw/tools/elf_call_reference.py','--toolchain-prefix',$ToolchainPrefix)}
+Invoke-Checked $Python @('scripts/build_guard.py','finish','--kind','firmware','--file',$Hex,'--variant',$Firmware)
 Write-Host "PTROCOS BUILD PASS: build/hex/ptrocos_$Firmware.hex"

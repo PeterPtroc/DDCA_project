@@ -3,10 +3,8 @@ set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 cd $root
 if {![info exists ptrocos_firmware]} {set ptrocos_firmware ddr2}
-set firmware [file join $root build hex ptrocos_${ptrocos_firmware}.hex]
-if {![file isfile $firmware] || [file size $firmware]==0} {
-    error "Build scripts/build_ptrocos.ps1 before creating the board project"
-}
+source [file join $script_dir build_guard.tcl]
+set firmware [ddca_check_firmware $ptrocos_firmware]
 set_msg_config -id {Synth 8-4445} -new_severity ERROR
 if {[info exists ptrocos_project_folder]} {
     set project_folder $ptrocos_project_folder
@@ -16,6 +14,9 @@ if {[info exists ptrocos_project_folder]} {
     set project_folder ptrocos_${ptrocos_firmware}_vivado
 }
 set out [file join $root build $project_folder]
+set project_file [file join $out ptrocos.xpr]
+ddca_guard prepare project $project_file $ptrocos_firmware
+ddca_guard begin project $project_file $ptrocos_firmware
 file mkdir $out
 create_project ptrocos $out -part xc7a100tcsg324-1 -force
 set source_list ptrocos_sources.txt
@@ -62,4 +63,10 @@ set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore $impl
 set_property STEPS.ROUTE_DESIGN.ARGS.DIRECTIVE AggressiveExplore $impl
 set_property STEPS.ROUTE_DESIGN.TCL.POST [file join $script_dir finalize_ptrocos_timing.tcl] $impl
 set_property STEPS.WRITE_BITSTREAM.TCL.PRE [file join $script_dir check_routed_timing.tcl] $impl
+set published_bit [file join $out ptrocos_${ptrocos_firmware}.bit]
+if {$project_folder eq "vivado"} {set published_bit [file join $out rv32_realtime_scope.bit]}
+ddca_configure_guard $project_file $ptrocos_firmware $published_bit \
+    [file join $out ptrocos.runs impl_1 ${board_top}_placed.dcp] \
+    [file join $script_dir optimize_ptrocos_rom.tcl]
+ddca_guard finish project $project_file $ptrocos_firmware
 puts "PTROCOS PROJECT CREATED: $out"

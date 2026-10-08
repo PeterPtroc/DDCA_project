@@ -15,7 +15,7 @@ foreach($name in @('hello','fault','loop')) {
     & $Readelf '-h' '-l' $path | Set-Content "build/ptrocos_elf/apps/$name.headers.txt" -Encoding ascii
     if($LASTEXITCODE -ne 0) {throw "Application readelf failed: $name"}
 }
-python.exe sw/tools/embed_ptrocos_apps.py
+python.exe -E sw/tools/embed_ptrocos_apps.py
 if($LASTEXITCODE -ne 0) {throw 'Application embedding failed'}
 foreach($name in @('hello','fault','loop')) {
     & $Readelf '-h' '-l' "build/ptrocos_elf/apps/$name.elf" | Set-Content "build/ptrocos_elf/apps/$name.headers.txt" -Encoding ascii

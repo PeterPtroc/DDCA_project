@@ -7,34 +7,10 @@ foreach arg $argv {
     if {$arg eq "reuse"} {set reuse true} elseif {$arg in {ddr2 text shell storage graphics media video elf}} {set ptrocos_firmware $arg} else {error "Unknown argument: $arg"}
 }
 if {$ptrocos_firmware eq "ddr2"} {set project_folder ptrocos_vivado} else {set project_folder ptrocos_${ptrocos_firmware}_vivado}
-if {$reuse} {
-    open_project [file join $root build $project_folder ptrocos.xpr]
-    # Refresh the RTL manifest: a reused project may still contain removed RTL.
-    set source_list [expr {$ptrocos_firmware eq "elf" ? "ptrocos_elf_sources.txt" : "ptrocos_sources.txt"}]
-    set board_top [expr {$ptrocos_firmware eq "elf" ? "ptrocos_elf_nexys_a7_top" : "ptrocos_nexys_a7_top"}]
-    set source_file [open [file join $script_dir $source_list] r]
-    set rtl_sources {}
-    foreach relative [split [string trim [read $source_file]] \n] {
-        lappend rtl_sources [file join $root [string trim $relative]]
-    }
-    close $source_file
-    lappend rtl_sources [file join $root src rtl top ${board_top}.v]
-    set old_rtl {}
-    foreach rtl [get_files -of_objects [get_filesets sources_1] -filter {FILE_TYPE == Verilog || FILE_TYPE == SystemVerilog}] {
-        if {[string match -nocase "[file join $root src rtl]/*" [file normalize $rtl]]} {
-            lappend old_rtl $rtl
-        }
-    }
-    if {[llength $old_rtl]} {remove_files $old_rtl}
-    add_files -norecurse $rtl_sources
-    set_property top $board_top [current_fileset]
-    set_property generic [list "IMEM_HEX=[file join $root build hex ptrocos_${ptrocos_firmware}.hex]" "CPU_PC_NEXT_STYLE=0"] [current_fileset]
-    # Existing projects may predate the post-place ROM fanout hook.
-    set rom_hook [file join $script_dir optimize_ptrocos_rom.tcl]
-    if {![llength [get_files -quiet $rom_hook]]} {add_files -fileset utils_1 -norecurse $rom_hook}
-    set_property STEPS.PLACE_DESIGN.TCL.POST $rom_hook [get_runs impl_1]
-    set_property PROCESSING_ORDER LATE [get_files ptrocos_audio.xdc]
-    set_property USED_IN_SYNTHESIS false [get_files ptrocos_audio.xdc]
+source [file join $script_dir build_guard.tcl]
+set project_file [file join $root build $project_folder ptrocos.xpr]
+if {$reuse && [ddca_guard prepare project $project_file $ptrocos_firmware] eq "ready"} {
+    open_project $project_file
     reset_run synth_1
 } else {
     source [file join $script_dir create_ptrocos_project.tcl]
@@ -54,5 +30,6 @@ set board_top [expr {$ptrocos_firmware eq "elf" ? "ptrocos_elf_nexys_a7_top" : "
 set bit [file join $root build $project_folder ptrocos.runs impl_1 ${board_top}.bit]
 if {![file isfile $bit]} { error "Missing PtrocOS bitstream $bit" }
 file copy -force $bit [file join $root build $project_folder ptrocos_${ptrocos_firmware}.bit]
+ddca_guard finish bitstream [file join $root build $project_folder ptrocos_${ptrocos_firmware}.bit] $ptrocos_firmware
 puts "PTROCOS BITSTREAM PASS: [file join $root build $project_folder ptrocos_${ptrocos_firmware}.bit]"
 close_project

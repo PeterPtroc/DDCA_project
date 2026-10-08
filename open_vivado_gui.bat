@@ -213,9 +213,23 @@ echo Opening Vivado GUI:
 echo   %PROJECT_FILE%
 echo.
 
+where python.exe >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Python 3 must be available in PATH.
+    pause
+    exit /b 1
+)
+python.exe -E "%ROOT%\scripts\build_guard.py" check --kind firmware --file "%ROOT%\build\hex\ptrocos_elf.hex"
+if errorlevel 1 (
+    echo ERROR: Rebuild the current branch firmware with build_freertos.bat first.
+    pause
+    exit /b 1
+)
+
 pushd "%ROOT%"
 call vivado -mode gui -source "%OPEN_GUI_TCL%"
 set "VIVADO_EXIT=%ERRORLEVEL%"
 popd
 
+if not "%VIVADO_EXIT%"=="0" pause
 exit /b %VIVADO_EXIT%
