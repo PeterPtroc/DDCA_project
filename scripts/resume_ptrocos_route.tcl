@@ -25,6 +25,7 @@ if {$firmware in {graphics media video elf} && !$verify_only} {
     if {$firmware in {media video elf}} {read_xdc [file join $root constraints ptrocos_audio.xdc]}
 }
 if {!$verify_only} {
+    source [file join $script_dir prepare_ptrocos_timing.tcl]
     source [file join $script_dir optimize_ptrocos_rom.tcl]
     phys_opt_design -directive AggressiveExplore
     route_design -directive AggressiveExplore

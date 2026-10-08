@@ -50,12 +50,17 @@ create_ip -name mig_7series -vendor xilinx.com -library ip -version 4.2 -module_
 source [file join $script_dir configure_ptrocos_mig.tcl]
 # Global synthesis sees the actual feedback reference clock from the MIG MMCM.
 set_property GENERATE_SYNTH_CHECKPOINT false [get_files ptrocos_ddr2_mig.xci]
-add_files -fileset utils_1 -norecurse [list [file join $script_dir finalize_ptrocos_timing.tcl] [file join $script_dir check_routed_timing.tcl] [file join $script_dir optimize_ptrocos_rom.tcl]]
+add_files -fileset utils_1 -norecurse [list [file join $script_dir prepare_ptrocos_timing.tcl] [file join $script_dir finalize_ptrocos_timing.tcl] [file join $script_dir check_routed_timing.tcl] [file join $script_dir optimize_ptrocos_rom.tcl]]
 foreach run [get_runs {synth_1 impl_1}] {
     set_property AUTO_INCREMENTAL_CHECKPOINT 0 $run
     set_property INCREMENTAL_CHECKPOINT {} $run
+    # The GUI implementation process has also terminated in automatic reports,
+    # before our post-route hook. Keep every report, but serialize their execution
+    # to avoid the parallel-report path while preserving timing/DRC acceptance.
+    set_property GEN_REPORTS_PARALLEL 0 $run
 }
 set impl [get_runs impl_1]
+set_property STEPS.PLACE_DESIGN.TCL.PRE [file join $script_dir prepare_ptrocos_timing.tcl] $impl
 set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE ExtraPostPlacementOpt $impl
 set_property STEPS.PLACE_DESIGN.TCL.POST [file join $script_dir optimize_ptrocos_rom.tcl] $impl
 set_property STEPS.PHYS_OPT_DESIGN.IS_ENABLED true $impl

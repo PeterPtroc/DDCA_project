@@ -11,6 +11,18 @@ if {[file tail [file dirname $out]] eq "ptrocos.runs"} {
 }
 set reports [file join $out reports]
 file mkdir $reports
+# Optimization uses an extra setup uncertainty before placement/routing. Restore
+# the normal constraints before every acceptance check, including checkpoint
+# verification. Do not mutate placement or routing in this post-route hook.
+set ptrocos_acceptance_clocks [get_clocks -of_objects [get_pins {
+    cpu_clock/O pixel_clock/O
+    memory/u_ptrocos_ddr2_mig_mig/u_ddr2_infrastructure/u_bufg_clkdiv0/O
+}]]
+if {[llength $ptrocos_acceptance_clocks]!=3} {
+    error "Missing functional clock for timing acceptance"
+}
+set_clock_uncertainty -setup 0.000 $ptrocos_acceptance_clocks
+puts "PTROCOS ACCEPTANCE TIMING: normal setup uncertainty restored"
 if {[llength [get_ports -quiet aud_pwm]]} {
     # The A7 analog supply owns the pull-up. Prove the implemented pin can only
     # sink current or float; a push-pull output would violate the board manual.
@@ -134,31 +146,6 @@ if {[llength [get_cells -hier -quiet -regexp {.*soc/app_memory/.*}]]} {
     }
     report_timing -to $app_cells -delay_type min_max -max_paths 20 -file [file join $reports elf_app_memory_timing.rpt]
     puts "PTROCOS ELF MEMORY TIMING PASS: RAMB36=4 falling-edge ports, related 100MHz mailbox [llength $app_paths] timed endpoints"
-}
-set preliminary [get_timing_paths -quiet -delay_type max -max_paths 1]
-if {[llength $preliminary] && [get_property SLACK $preliminary]>=-0.500 &&
-    [get_property SLACK $preliminary]<0.100} {
-    if {[file tail $out] in {ptrocos_media_vivado ptrocos_video_vivado ptrocos_elf_vivado} ||
-        [llength [get_cells -hier -quiet -regexp {.*soc/app_memory/.*}]]} {
-        # Physical optimization otherwise ignores positive slack below our
-        # acceptance margin. Optimize against a tighter target, then restore
-        # the normal clock uncertainty before reporting or emitting the bit.
-        # The DDR graphics address path can determine overall WNS even when
-        # the CPU already has margin. Optimize all functional clock domains.
-        set optimize_clocks [get_clocks -of_objects [get_pins {
-            cpu_clock/O pixel_clock/O
-            memory/u_ptrocos_ddr2_mig_mig/u_ddr2_infrastructure/u_bufg_clkdiv0/O
-        }]]
-        if {[llength $optimize_clocks]!=3} {error "Missing functional clock for timing optimization"}
-        set_clock_uncertainty -setup 0.250 $optimize_clocks
-        phys_opt_design -directive AggressiveExplore
-        phys_opt_design -placement_opt -routing_opt
-        route_design -directive Explore
-        set_clock_uncertainty -setup 0.000 $optimize_clocks
-    } else {
-        phys_opt_design -directive AggressiveExplore
-        route_design -directive NoTimingRelaxation
-    }
 }
 write_checkpoint -force [file join $out ptrocos_routed.dcp]
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose -max_paths 20 -file [file join $reports timing_summary.rpt]

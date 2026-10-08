@@ -17,6 +17,10 @@ python tools/ptrocos_elf_test.py --port COM9
 
 ELF 构建同时生成示例应用；单独构建使用 `scripts/build_ptrocos_apps.ps1`。输出为 `build/hex/ptrocos_elf.hex`、`build/ptrocos_elf/apps/` 和 `build/ptrocos_elf_vivado/ptrocos_elf.bit`。位流必须通过 setup ≥ +0.100 ns、非负 hold/pulse、DRC、CDC 覆盖及音频开漏检查。归档 routed checkpoint 可用 `vivado -mode batch -source scripts/resume_ptrocos_route.tcl -tclargs elf verify` 复核。
 
+GUI、批处理与 checkpoint 恢复共用时序流程：在布局/布线前增加 0.250 ns setup uncertainty 作为优化目标，布线后恢复正常约束并验收。布线后的检查不再执行物理优化，避免 Vivado 2024.2 在优化 PC 寄存器副本时异常退出；setup ≥ +0.100 ns 的验收门槛保持不变。最终验收报告为工程目录内的 `reports/timing_summary.rpt`，Vivado 默认的 route 阶段报告仍使用优化目标。
+
+自动报告改为串行生成，保留功耗、时序和 DRC 等报告。2026-10-09 GUI 实现曾在布线成功后的 `report_power` 启动阶段异常退出，尚未进入自定义验收钩子；单独重放功耗报告及两轮并行报告均通过，因此目前只确认失败阶段，未取得崩溃栈或确认底层根因。
+
 存储及其上层固件采用 `-Os`/LTO，完整 exFAT ELF 固件 ROM 为 60,256 字节，适配 64 KiB。文件命令使用 64 位大小/偏移；BMP/WAV/PTV 与 ELF32 保留 32 位格式范围，拒绝大于 `UINT32_MAX` 的文件。
 
 ## 使用与接口
@@ -76,10 +80,12 @@ DMA 基址 `0x4000a000`：
 
 2026-10-07 本地验证通过：`storage/graphics/media/video/elf` 五个固件构建、现有原生回归及 PC_STYLE=0 的文件/ELF SoC 仿真。日志为 `build/exfat-*.log`，复现入口见 [仿真验证](../src/sim/README.md)。历史完整记录位于 `build/ptrocos-validation/`，与构建产物一起受 Git 忽略，不随克隆分发。
 
-当前 exFAT 固件尚未重建位流或上板。实卡文件/媒体/ELF、VGA 显示器、J8 模拟音频仍待验；物理键盘按用户要求延期。历史 UART 的 `no-card` 记录只说明当次状态。未取得最终 PASS 的补充视频回归不计通过。
+2026-10-09 完整 exFAT ELF 固件已重新综合、实现并生成位流，重新加载 routed checkpoint 复核通过；setup/hold/pulse 最差余量分别为 +0.292/+0.016/+0.206 ns，DRC 无 Error/Critical Warning。构建与复核日志分别为 `build/ptrocos-gui-fix-build.log`、`build/ptrocos-gui-fix-verify.log`。本次位流尚未上板；实卡文件/媒体/ELF、VGA 显示器、J8 模拟音频仍待验，物理键盘按用户要求延期。历史 UART 的 `no-card` 记录只说明当次状态。未取得最终 PASS 的补充视频回归不计通过。
+
+后续自动报告串行化配置已完成固件构建和 Vivado 属性检查（`synth_1`、`impl_1` 的 `GEN_REPORTS_PARALLEL=0`）；该配置的 GUI 实现由用户复跑，尚待验收。
 
 ## 分支清理与兼容入口
 
 公共 MMIO 使用 `ptrocos_mmio`，GPIO/UART/timer/perf/按键/数码管地址保持不变。RGB 控制见 [系统架构](architecture.md)。JA/JB 未分配，板卡无需示波器跳线。
 
-根 README 的快速启动段落保留原文。`build_freertos.bat` / `scripts/build_freertos.ps1` 现在构建完整 PtrocOS ELF 固件，并生成 `build/hex/freertos.hex` 兼容副本；`open_vivado_gui.bat` / `scripts/build_bitstream.tcl` 使用相同 PtrocOS ELF 顶层，在 `build/vivado/ptrocos.xpr` 建工程，位流仍发布到 `build/vivado/rv32_realtime_scope.bit`。这些名称仅用于兼容。GUI 每次启动重新生成工程以同步源码清单；正式 PtrocOS 入口与默认固件见上文。
+根 README 的快速启动段落保留原文。`build_freertos.bat` / `scripts/build_freertos.ps1` 现在构建完整 PtrocOS ELF 固件，并生成 `build/hex/freertos.hex` 兼容副本；`open_vivado_gui.bat` / `scripts/build_bitstream.tcl` 使用相同 PtrocOS ELF 顶层，在 `build/vivado/ptrocos.xpr` 建工程，位流仍发布到 `build/vivado/rv32_realtime_scope.bit`。这些名称仅用于兼容。GUI 启动时核对分支、源码和固件，输入变化时归档旧工程并重建；修改时序脚本后应关闭旧工程，重新运行 `open_vivado_gui.bat`，以更新实现钩子。正式 PtrocOS 入口与默认固件见上文。
