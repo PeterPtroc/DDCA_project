@@ -91,7 +91,8 @@ $Xelab = Join-Path $VivadoBin "xelab.bat"
 $Xsim = Join-Path $VivadoBin "xsim.bat"
 
 New-Item -ItemType Directory -Path "build\hex" -Force | Out-Null
-foreach ($name in @("scope", "isa_test", "hazard_test", "crc_test")) {
+& "$PSScriptRoot\build_scope.ps1"
+foreach ($name in @("isa_test", "hazard_test", "crc_test")) {
     Invoke-Checked $Python @(
         "sw\tools\rv32asm.py", "sw\firmware\$name.S", "build\hex\$name.hex"
     )

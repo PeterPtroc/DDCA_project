@@ -15,12 +15,9 @@ if {$pc_next_style ni {0 1}} {
     error "PC_NEXT_STYLE must be 0 (PC CE) or 1 (pc_next)"
 }
 
-if {![file exists $project_file]} {
-    error "Vivado project not found: run scripts/create_vivado_project.tcl first"
-}
-
+source [file join $script_dir open_vivado_project.tcl]
 file mkdir $report_dir
-open_project $project_file
+ddca_guard begin bitstream $bitstream_file
 
 # Keep the direct flow in the repository root so imem's generated firmware path
 # resolves identically in simulation and synthesis.
@@ -87,5 +84,6 @@ puts "DRC PASS"
 # Reaching bitgen now proves routing, setup/hold timing, and blocking DRCs all
 # passed; it does not claim that warning-level findings or hardware tests passed.
 write_bitstream -force $bitstream_file
+ddca_guard finish bitstream $bitstream_file
 puts "BITSTREAM PASS: $bitstream_file"
 close_project

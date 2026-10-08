@@ -4,6 +4,12 @@ set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 cd $root
 set build_dir [file join $root build vivado]
+source [file join $script_dir build_guard.tcl]
+set firmware [ddca_check_firmware]
+set_msg_config -id {Synth 8-4445} -new_severity ERROR
+set project_file [file join $build_dir rv32_realtime_scope.xpr]
+ddca_guard prepare project $project_file
+ddca_guard begin project $project_file
 file mkdir $build_dir
 create_project rv32_realtime_scope $build_dir -part xc7a100tcsg324-1 -force
 # The course-design project deliberately lists every production RTL source.
@@ -40,5 +46,11 @@ set production_sources [list \
 add_files -norecurse $production_sources
 add_files -fileset constrs_1 -norecurse [file join $root constraints nexys_a7_100t.xdc]
 set_property top nexys_a7_top [current_fileset]
+add_files -norecurse $firmware
+set_property file_type {Memory Initialization Files} [get_files $firmware]
+ddca_configure_guard $project_file scope [file join $build_dir rv32_realtime_scope.bit]
+add_files -fileset utils_1 -norecurse [file join $script_dir publish_bitstream.tcl]
+set_property STEPS.WRITE_BITSTREAM.TCL.POST [file join $script_dir publish_bitstream.tcl] [get_runs impl_1]
 update_compile_order -fileset sources_1
+ddca_guard finish project $project_file
 puts "Vivado project created at $build_dir"

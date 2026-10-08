@@ -197,54 +197,20 @@ where vivado
 echo.
 
 rem ============================================================
-rem 7. Create the Vivado project if it does not exist.
+rem 7. Build scope firmware and open a project for the current sources.
 rem ============================================================
 
-if exist "%PROJECT_FILE%" goto :open_gui
-
-echo Creating Vivado project...
-echo.
-
-pushd "%ROOT%"
-
-vivado -mode batch -source "%CREATE_TCL%"
-set "VIVADO_EXIT=%ERRORLEVEL%"
-
-popd
-
-if not "%VIVADO_EXIT%"=="0" (
-    echo.
-    echo ERROR: Failed to create Vivado project.
-    pause
-    exit /b %VIVADO_EXIT%
-)
-
-if not exist "%PROJECT_FILE%" (
-    echo.
-    echo ERROR: Vivado completed but the project file was not created:
-    echo   %PROJECT_FILE%
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\scripts\build_scope.ps1"
+if errorlevel 1 (
+    echo ERROR: Scope firmware build failed.
     pause
     exit /b 1
 )
 
-echo.
-echo Vivado project created successfully.
-
-
-rem ============================================================
-rem 8. Open Vivado GUI.
-rem ============================================================
-
-:open_gui
-
-echo.
-echo Opening Vivado GUI:
-echo   %PROJECT_FILE%
-echo.
-
 pushd "%ROOT%"
-vivado "%PROJECT_FILE%"
+call vivado -mode gui -source "%ROOT%\scripts\open_vivado_project.tcl"
 set "VIVADO_EXIT=%ERRORLEVEL%"
 popd
 
+if not "%VIVADO_EXIT%"=="0" pause
 exit /b %VIVADO_EXIT%

@@ -4,6 +4,8 @@
 set script_dir [file dirname [file normalize [info script]]]
 set root [file normalize [file join $script_dir ..]]
 set bitstream_file [file join $root build vivado rv32_realtime_scope.bit]
+source [file join $script_dir build_guard.tcl]
+ddca_guard check bitstream $bitstream_file
 
 if {![file exists $bitstream_file]} {
     error "Bitstream not found: run scripts/build_bitstream.tcl first"
