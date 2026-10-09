@@ -103,7 +103,16 @@ int ptrocos_graphics_video_present(struct ptrocos_video_canvas *v,uint32_t frame
     v->canvas.base=video_base(v,frame);
     return present_format(&v->canvas,32,1);
 }
-void ptrocos_graphics_video_close(struct ptrocos_video_canvas *v) {ptrocos_graphics_abort(&v->canvas);}
+int ptrocos_graphics_video_close(struct ptrocos_video_canvas *v)
+{
+    if(!v->canvas.owned) return GFX_OK;
+    // Drain any queued flip, then restore the text console before releasing the
+    // graphics lock. Cleanup must still run when Ctrl+C has set the cancel flag.
+    int result=wait_commit();
+    if(!result) {put(8,1);result=wait_commit();}
+    if(!result && (reg(12)&1U)) result=GFX_INVALID;
+    ptrocos_graphics_abort(&v->canvas);return result;
+}
 #endif
 static uint16_t color(unsigned pattern,unsigned x,unsigned y)
 {

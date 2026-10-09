@@ -54,19 +54,21 @@ def main():
                 assert 266<=values['elapsed_ms']<400 and values['max_late_ms']<=40,values
                 audio=command('audio info',b'audio rate=')
                 assert b'status=4 queued=0 played=2133 underruns=0' in audio,audio
-                state=graphics();assert state['status']==1 and 0x81200000<=state['front']<0x81208000,state
+                state=graphics();assert state['status']==0 and 0x81200000<=state['front']<0x81208000,state
                 command('ddrtest',b'DDR DMA PASS words=256 crc=0000f364')
                 mark(f'timed four-frame video and 2133 PCM samples with DDR DMA {trial+1}')
             send(b'video test\r');until(lambda data:b'PTV fps=' in data and b'Ctrl+C cancels\r\n' in data)
             time.sleep(.03);send(b'\x03');until(lambda data:b'^C cancelled\r\n' in data and data.endswith(PROMPT))
             state=video_info();assert state['playing']==0
             audio=command('audio info',b'audio rate=');assert b'status=0 queued=0 played=0 underruns=0' in audio,audio
-            mark('video cancellation stops audio and releases playback state')
+            assert graphics()['status']==0
+            mark('video cancellation stops audio and restores text mode')
             command('video test',b'PTV played fps=');assert video_info()['displayed']==4
             mark('video retry after cancellation')
             command('gfx pattern 0',b'gfx pattern=0 displayed');graphics()
-            command('video test',b'PTV played fps=');assert video_info()['displayed']==4;graphics()
-            mark('RGB565 and monochrome formats switch in both directions')
+            command('video test',b'PTV played fps=');assert video_info()['displayed']==4
+            assert graphics()['status']==0
+            mark('RGB565 switches to monochrome playback and returns to text')
             command('audio test',b'AUDIO PASS rate=8000 samples=256 underruns=0')
             command('gfx off',b'gfx text mode');assert graphics()['status']==0
             response=command('uptime',b'input_dropped=')

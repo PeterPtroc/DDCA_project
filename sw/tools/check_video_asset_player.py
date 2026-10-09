@@ -93,7 +93,7 @@ def main():
     source = Source(len(raw), read, cancelled, None)
     result = lib.ptrocos_video_play(C.byref(source), C.byref(Work()), write, None, C.byref(cancel))
     assert result == 0 and not errors, (result, errors[:5], text)
-    assert all(lib.video_native_value(index) == 0 for index in (2, 3, 5, 7))
+    assert all(lib.video_native_value(index) == 0 for index in (2, 3, 5, 7, 8))
     shown = lib.video_native_value(0)
     indices = [lib.video_native_frames()[i] for i in range(shown)]
     assert indices == list(range(frames)), 'Unexpected dropped, repeated or missing frame'

@@ -23,7 +23,7 @@ int ptrocos_graphics_video_begin(struct ptrocos_video_canvas *video,const volati
 int ptrocos_graphics_video_write(struct ptrocos_video_canvas *video,uint32_t frame,
     const uint8_t *bits,const volatile uint32_t *cancel);
 int ptrocos_graphics_video_present(struct ptrocos_video_canvas *video,uint32_t frame);
-void ptrocos_graphics_video_close(struct ptrocos_video_canvas *video);
+int ptrocos_graphics_video_close(struct ptrocos_video_canvas *video);
 #endif
 int ptrocos_graphics_command(unsigned argc,char **argv,void (*write)(void *,const char *),
     void *context,const volatile uint32_t *cancel);

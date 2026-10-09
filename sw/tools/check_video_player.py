@@ -21,6 +21,7 @@ class Source(C.Structure): _fields_=[('size',C.c_uint32),('read',READ),('cancel'
 class Work(C.Structure): _fields_=[('input',C.c_uint8*2560),('output',C.c_uint32*320)]
 lib.ptrocos_video_play.argtypes=[C.POINTER(Source),C.POINTER(Work),WRITE,C.c_void_p,C.POINTER(C.c_uint32)]
 lib.video_native_hook.argtypes=[HOOK];lib.video_native_value.argtypes=[C.c_uint]
+lib.video_native_close_error.argtypes=[C.c_int]
 lib.video_native_frames.restype=C.POINTER(C.c_uint32);lib.video_native_ticks.restype=C.POINTER(C.c_uint32)
 lib.video_native_samples.restype=C.POINTER(C.c_uint16)
 checks=frames=samples=0;records=[]
@@ -33,10 +34,10 @@ def fixture(fps,count,rate):
         sound.extend(pcm);data.extend(struct.pack('<'+'H'*len(pcm),*pcm))
     return bytes(data),bitmaps,sound
 
-def run(fps,count,rate,delay=0,cancel_event=None,io_at=None,start=0xffffff00,expected=0):
+def run(fps,count,rate,delay=0,cancel_event=None,io_at=None,start=0xffffff00,expected=0,close_error=0):
     global checks,frames,samples
-    data,bitmaps,sound=fixture(fps,count,rate);errors=[];output=bytearray();reads=0
-    cancel=C.c_uint32(0);lib.video_native_reset(start)
+    data,bitmaps,sound=fixture(fps,count,rate);errors=[];output=bytearray();reads=0;closed=0
+    cancel=C.c_uint32(0);lib.video_native_reset(start);lib.video_native_close_error(close_error)
     @READ
     def read(_,offset,destination,count):
         nonlocal reads
@@ -52,8 +53,13 @@ def run(fps,count,rate,delay=0,cancel_event=None,io_at=None,start=0xffffff00,exp
     def write(_,text): output.extend(text)
     @HOOK
     def hook(event,index,pointer):
+        nonlocal closed
         try:
             if event in [0,1]: assert C.string_at(pointer,2400)==bitmaps[index]
+            if event==1: assert lib.video_native_value(8)==1
+            if event==5:
+                assert lib.video_native_value(8)==0 and lib.video_native_value(2)==1
+                closed+=1
             if event==3: assert C.cast(pointer,C.POINTER(C.c_uint16))[0]==sound[index-1]
             if event==4: errors.append('unexpected underrun')
             if cancel_event==(event,index): cancel.value=1
@@ -62,7 +68,8 @@ def run(fps,count,rate,delay=0,cancel_event=None,io_at=None,start=0xffffff00,exp
     result=lib.ptrocos_video_play(C.byref(source),C.byref(Work()),write,None,C.byref(cancel))
     assert result==expected,(result,expected,output,errors)
     assert not errors,errors
-    assert lib.video_native_value(2)==lib.video_native_value(3)==lib.video_native_value(7)==0
+    assert all(lib.video_native_value(index)==0 for index in (2,3,7,8))
+    assert closed==(0 if io_at==1 else 1)
     shown=lib.video_native_value(0);played=lib.video_native_value(1)
     indices=[lib.video_native_frames()[i] for i in range(shown)]
     assert all(a<b for a,b in zip(indices,indices[1:])),indices
@@ -76,6 +83,8 @@ def run(fps,count,rate,delay=0,cancel_event=None,io_at=None,start=0xffffff00,exp
         assert all(lib.video_native_samples()[i]==value for i,value in enumerate(sound))
         records.append({'fps':fps,'frames':count,'rate':rate,'delay_ms_per_read':delay,'displayed':shown,'dropped':count-shown,'elapsed_ms':values[5]})
         frames+=count;samples+=played
+    else:
+        assert b'PTV played' not in output
     checks+=1
 
 for fps in [10,15,30]:
@@ -89,5 +98,7 @@ for event,index in [(0,0),(0,3),(1,0),(1,2),(3,32)]:
 for io_at in [1,2,3,7,15]:
     run(15,31,8000,io_at=io_at,expected=2)
     run(15,4,8000)
+run(15,4,8000,close_error=2,expected=4)
+run(15,4,8000,cancel_event=(1,0),close_error=2,expected=3)
 (OUT/'native-player-results.json').write_text(json.dumps(records,indent=2)+'\n',encoding='utf-8')
-print(f'PTV PLAYER PASS checks={checks} frames={frames} samples={samples} ring-bounds sample-clock silent-clock dropped cancel retry IO tick-wrap',flush=True)
+print(f'PTV PLAYER PASS checks={checks} frames={frames} samples={samples} ring-bounds sample-clock silent-clock dropped cancel retry IO tick-wrap text-restored',flush=True)

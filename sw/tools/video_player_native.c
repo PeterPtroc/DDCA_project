@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <string.h>
 static uint32_t tick,rate,phase,played,write_at,queued;
-static unsigned running,finishing,gfx_owned,audio_owned,seed,front,has_front;
+static unsigned running,finishing,gfx_owned,audio_owned,seed,front,has_front,gfx_enabled;
 static uint8_t slots[8][2400];
 #ifndef VIDEO_NATIVE_MAX_SAMPLES
 #define VIDEO_NATIVE_MAX_SAMPLES 2000000
@@ -14,12 +14,14 @@ static uint16_t fifo[4096],emitted[VIDEO_NATIVE_MAX_SAMPLES];
 static uint32_t slot_frame[8];
 static uint32_t presented[200000],present_ticks[200000];
 static unsigned shown,samples;
+static int close_error;
 static void (*hook)(unsigned,unsigned,const void *);
 void video_native_hook(void (*callback)(unsigned,unsigned,const void *)) {hook=callback;}
+void video_native_close_error(int result) {close_error=result;}
 void video_native_reset(uint32_t start)
 {
     assert(!gfx_owned && !audio_owned);tick=start;rate=phase=played=write_at=queued=0;
-    running=finishing=shown=samples=0;
+    running=finishing=shown=samples=0;close_error=0;
 }
 void video_native_advance(unsigned ticks)
 {
@@ -46,7 +48,8 @@ void storage_native_yield(void) { }
 unsigned video_native_value(unsigned index)
 {
     return index==0 ? shown : index==1 ? samples : index==2 ? gfx_owned :
-        index==3 ? audio_owned : index==4 ? tick : index==5 ? queued : index==6 ? front : running;
+        index==3 ? audio_owned : index==4 ? tick : index==5 ? queued : index==6 ? front :
+        index==7 ? running : gfx_enabled;
 }
 const uint32_t *video_native_frames(void) {return presented;}
 const uint32_t *video_native_ticks(void) {return present_ticks;}
@@ -71,13 +74,20 @@ int ptrocos_graphics_video_present(struct ptrocos_video_canvas *v,uint32_t frame
 {
     assert(gfx_owned && v->canvas.owned);unsigned slot=(v->seed+frame)&7U;
     assert(slot_frame[slot]==frame);
-    video_native_advance(16-(tick%16));front=slot;has_front=1;
+    video_native_advance(16-(tick%16));front=slot;has_front=1;gfx_enabled=1;
     assert(shown<200000);presented[shown]=frame;present_ticks[shown++]=tick;
     if(hook) hook(1,frame,slots[slot]);
     return GFX_OK;
 }
-void ptrocos_graphics_video_close(struct ptrocos_video_canvas *v)
-{if(v->canvas.owned) {gfx_owned=0;v->canvas.owned=0;}}
+int ptrocos_graphics_video_close(struct ptrocos_video_canvas *v)
+{
+    if(v->canvas.owned) {
+        video_native_advance(16-(tick%16));gfx_enabled=0;
+        if(hook) hook(5,0,0);
+        gfx_owned=0;v->canvas.owned=0;
+    }
+    return close_error;
+}
 int ptrocos_audio_begin(struct ptrocos_audio *a,uint32_t hz,const volatile uint32_t *cancel)
 {
     if(cancel && *cancel) return MEDIA_CANCEL;

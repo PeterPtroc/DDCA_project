@@ -66,7 +66,7 @@ for kind,prefix,version,high in ((12,0,1,False),(16,0,2,True),(32,0,2,True),(16,
         lib.storage_native_transfer(original)
         assert result==1 and not errors,(output,errors)
         if model.exception:raise model.exception
-        assert lib.video_native_value(2)==lib.video_native_value(3)==lib.video_native_value(7)==0
+        assert all(lib.video_native_value(index)==0 for index in (2,3,7,8))
         checks+=1;return bytes(output),cancel.value
     assert command('umount')[0]==b'FAT unmounted\r\n'
     assert command('play','/CLIP.PTV')[0]==b'mount the SD card first\r\n'

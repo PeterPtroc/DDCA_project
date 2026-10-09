@@ -186,6 +186,12 @@ module tb_ptrocos_video #(parameter PC_STYLE=0);
   endtask
   task settle;repeat(30000) @(negedge clk);endtask
   task frames(input integer count);integer before_frame;before_frame=physical_frames;wait(physical_frames>=before_frame+count);endtask
+  task text_restored;
+    if(dut.graphics.active_enable || dut.graphics.pending) $fatal(1,"Video exit left graphics enabled or pending");
+    frames(2);
+    if(dut.graphics.graphics_selected || {red,green,blue}!=={dut.text_red,dut.text_green,dut.text_blue})
+      $fatal(1,"Video exit did not restore VGA text output");
+  endtask
   initial begin
     repeat(20) @(negedge clk);rst=0;wait(booted);settle();
     command("play /CLIP.PTV");wait(missing==1);settle();
@@ -194,19 +200,24 @@ module tb_ptrocos_video #(parameter PC_STYLE=0);
     pcm_count=0;command("play /CLIP.PTV");wait(finished==1);settle();
     if(pcm_count!=2133 || !dut.audio.done || last_rate!=8000 || last_frames!=8 || last_elapsed<266)
       $fatal(1,"Video normal audio accounting samples=%0d elapsed=%0d",pcm_count,last_elapsed);
+    text_restored();
     command("play /SILENT.PTV");wait(finished==2);settle();
     if(last_rate || last_frames!=5 || last_elapsed<166 || dut.audio.running) $fatal(1,"Silent video clock");
+    text_restored();
     pcm_count=0;command("play /CLIP.PTV");wait(started==3);wait(dut.audio.running && pcm_count>=32);
     uart_byte(3);wait(cancelled==1);settle();
     if(dut.audio.running || dut.audio.count) $fatal(1,"Video cancellation retained audio");
+    text_restored();
     // This cancellation interrupts a live SD read. The storage contract clears
     // initialization and mount, so retry must first prove the guard and remount.
     command("play /CLIP.PTV");wait(missing==2);settle();
     command("mount");wait(mounts==2);settle();
     pcm_count=0;command("play /CLIP.PTV");wait(finished==3);settle();
     if(pcm_count!=2133) $fatal(1,"Video retry PCM count");
+    text_restored();
     if(PC_STYLE==0) begin
       corrupt=1;command("play /CLIP.PTV");wait(io_errors==1);settle();corrupt=0;
+      text_restored();
       command("play /CLIP.PTV");wait(missing==3);settle();
       command("mount");wait(mounts==3);settle();
     end
@@ -218,7 +229,7 @@ module tb_ptrocos_video #(parameter PC_STYLE=0);
        checked_pixels<640*480*5 || checked_samples<4266 || sd_reads<20 || sd_writes || video_frames<8)
       $fatal(1,"Video coverage pixels=%0d samples=%0d swaps=%0d",checked_pixels,checked_samples,video_frames);
     $fclose(log_file);
-    $display("PTROCOS VIDEO SOC PASS style=%0d cycles=%0d pixels=%0d samples=%0d SDreads=%0d swaps=%0d timer=%0d yields=%0d real-PTV silent sample-clock cancellation retry CRC DMA",PC_STYLE,cycles,checked_pixels,checked_samples,sd_reads,video_frames,timer_irqs,yields);
+    $display("PTROCOS VIDEO SOC PASS style=%0d cycles=%0d pixels=%0d samples=%0d SDreads=%0d swaps=%0d timer=%0d yields=%0d real-PTV silent sample-clock cancellation retry CRC DMA text-restored",PC_STYLE,cycles,checked_pixels,checked_samples,sd_reads,video_frames,timer_irqs,yields);
     $finish;
   end
 endmodule

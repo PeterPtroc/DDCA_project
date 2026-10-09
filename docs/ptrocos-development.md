@@ -21,7 +21,7 @@ GUI、批处理与 checkpoint 恢复共用时序流程：在布局/布线前增�
 
 自动报告改为串行生成，保留功耗、时序和 DRC 等报告。2026-10-09 GUI 实现曾在布线成功后的 `report_power` 启动阶段异常退出，尚未进入自定义验收钩子；单独重放功耗报告及两轮并行报告均通过，因此目前只确认失败阶段，未取得崩溃栈或确认底层根因。
 
-存储及其上层固件采用 `-Os`/LTO，完整 exFAT ELF 固件 ROM 为 60,256 字节，适配 64 KiB。文件命令使用 64 位大小/偏移；BMP/WAV/PTV 与 ELF32 保留 32 位格式范围，拒绝大于 `UINT32_MAX` 的文件。
+存储及其上层固件采用 `-Os`/LTO，完整 exFAT ELF 固件 ROM 为 60,512 字节，适配 64 KiB。文件命令使用 64 位大小/偏移；BMP/WAV/PTV 与 ELF32 保留 32 位格式范围，拒绝大于 `UINT32_MAX` 的文件。
 
 ## 使用与接口
 
@@ -80,9 +80,9 @@ DMA 基址 `0x4000a000`：
 
 2026-10-07 本地验证通过：`storage/graphics/media/video/elf` 五个固件构建、现有原生回归及 PC_STYLE=0 的文件/ELF SoC 仿真。日志为 `build/exfat-*.log`，复现入口见 [仿真验证](../src/sim/README.md)。历史完整记录位于 `build/ptrocos-validation/`，与构建产物一起受 Git 忽略，不随克隆分发。
 
-2026-10-09 完整 exFAT ELF 固件已重新综合、实现并生成位流，重新加载 routed checkpoint 复核通过；setup/hold/pulse 最差余量分别为 +0.292/+0.016/+0.206 ns，DRC 无 Error/Critical Warning。构建与复核日志分别为 `build/ptrocos-gui-fix-build.log`、`build/ptrocos-gui-fix-verify.log`。本次位流尚未上板；实卡文件/媒体/ELF、VGA 显示器、J8 模拟音频仍待验，物理键盘按用户要求延期。历史 UART 的 `no-card` 记录只说明当次状态。未取得最终 PASS 的补充视频回归不计通过。
+2026-10-09 完整 exFAT ELF 固件已重新综合、实现并生成位流，重新加载 routed checkpoint 复核通过；setup/hold/pulse 最差余量分别为 +0.292/+0.016/+0.206 ns，DRC 无 Error/Critical Warning。构建与复核日志分别为 `build/ptrocos-gui-fix-build.log`、`build/ptrocos-gui-fix-verify.log`。用户随后确认实物验收已通过，并报告视频播放结束仍停留在最后一帧、遮住 shell 的问题。历史 UART 的 `no-card` 记录只说明当次状态。未取得最终 PASS 的补充视频回归不计通过。
 
-后续自动报告串行化配置已完成固件构建和 Vivado 属性检查（`synth_1`、`impl_1` 的 `GEN_REPORTS_PARALLEL=0`）；该配置的 GUI 实现由用户复跑，尚待验收。
+视频退出逻辑现已改为自动恢复文本 shell，覆盖正常结束、Ctrl+C 取消和播放错误。播放器及 FAT/exFAT 命令原生回归、实际 RV32 图形恢复代码的延迟提交/超时回归通过；`video/elf` 固件重新构建，恢复文本输出的 ELF 视频 SoC 用例已编译。此次修复尚未运行完整 SoC 仿真或生成新位流，上板复验需重新生成并下载位流。自动报告串行化配置保持 `synth_1`、`impl_1` 的 `GEN_REPORTS_PARALLEL=0`。
 
 ## 分支清理与兼容入口
 

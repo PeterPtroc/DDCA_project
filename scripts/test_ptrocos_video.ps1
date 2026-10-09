@@ -17,6 +17,10 @@ if($ToolchainPrefix) {
 $tests=@()
 if(-not $SocOnly) {
     if(-not $RunOnly) {
+        $graphicsCheckPrefix=$ToolchainPrefix
+        if(-not $graphicsCheckPrefix) {$graphicsCheckPrefix=$env:RISCV_TOOLCHAIN_PREFIX}
+        if(-not $graphicsCheckPrefix) {$graphicsCheckPrefix=& "$PSScriptRoot/setup_toolchain.ps1"}
+        Invoke-Checked 'python.exe' @('sw/tools/check_graphics_video_close.py','--toolchain-prefix',$graphicsCheckPrefix)
         foreach($native in @('check_video_decode.py','check_video_player.py','check_video_commands.py','check_video_tools.py')) {
             Invoke-Checked 'python.exe' @("sw/tools/$native")
         }

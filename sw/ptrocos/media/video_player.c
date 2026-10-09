@@ -112,7 +112,9 @@ int ptrocos_video_play(const struct media_source *source,struct media_work *work
     if(!result && last.displayed+last.dropped!=p.header.frames) result=MEDIA_OUTPUT;
 done:
     if(result) ptrocos_audio_abort(&p.audio);
-    ptrocos_graphics_video_close(&p.video);last.playing=0;
+    int close_result=graphics_result(ptrocos_graphics_video_close(&p.video));
+    if(!result) result=close_result;
+    last.playing=0;
     if(!result) info(write,context,"PTV played fps=");
     return result;
 }
