@@ -1,5 +1,7 @@
 # 仿真验证
 
+想直观看到流水线指令推进、前递、停顿和冲刷，使用 [Vivado 流水线演示](../../docs/pipeline-demo.md)：在空 Vivado 窗口执行 `source scripts/create_pipeline_demo.tcl`。内置短程序，无需固件构建，自动生成按五类功能分组的波形（当前 MEM 实际分为两拍）。
+
 在仓库根目录运行 `.\scripts\test_ptrocos.ps1` 重建全部九种固件并运行 PtrocOS 本地回归，日志保存到 `build/ptrocos-validation/cleanup/`。需要 RISC-V 工具链、Python 和 Vivado XSim；缺少 MIG 引脚模型时自动调用 `scripts/create_ddr2_ip.tcl` 生成。中途修复后可用 `-ResumeFrom <测试脚本名>` 跳过已完成的构建和检查，接着运行该项及后续测试；恢复运行单独报告，不代表之前跳过的项通过。
 
 公共外设与 CPU 快速检查使用 `.\scripts\test.ps1`，不再依赖旧示波器固件。此入口包含 ISA/hazard/CRC 差分、machine-mode、精确中断、UART FIFO，以及 `tb_ptrocos_mmio`：验证撤销页面不会改变 GPIO、RGB、数码管、按键事件或 UART FIFO，验证性能清零和复位。
