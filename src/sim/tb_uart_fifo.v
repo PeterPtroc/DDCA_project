@@ -52,10 +52,10 @@ module tb_uart_fifo;
     send_byte(8'hff);
     #1;
     if (!rdata[2]) $fatal(1, "FIFO overflow was not reported");
-    // A full FIFO must preserve queued bytes when a new byte is dropped.
+    // FIFO 已满而丢弃新字节时，必须保留队列中已有的字节。
     pop_byte(8'h30);
     send_byte(8'h34);
-    // Pop the oldest byte on the exact edge a new byte arrives at full capacity.
+    // 在 FIFO 已满且新字节到达的同一时钟沿，弹出最早入队的字节。
     fork
       send_byte(8'h35);
       begin

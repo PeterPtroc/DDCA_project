@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 `default_nettype none
-// Simulation-only independent sparse 128 MiB memory. Full byte addresses are
-// tagged; upper address bits never alias. AW/W and B/R delays are independent.
+// 仅用于仿真的独立稀疏存储器，容量为 128 MiB。使用完整字节地址
+// 标记存储项，高位地址不会发生别名映射。AW/W 和 B/R 通道的延迟相互独立。
 module axi_sparse_memory # (parameter CAPACITY=512) (
     input wire clk, rst,
     input wire [26:0] awaddr, araddr,

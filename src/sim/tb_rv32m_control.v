@@ -33,15 +33,15 @@ module rv32m_control_runner #(parameter PC_STYLE = 0) (output reg done = 0);
   end
   initial begin
     for (i = 0; i < 128; i = i + 1) rom[i] = 32'h00000013;
-    rom[0] = 32'h10000393; // mtvec = 0x100
+    rom[0] = 32'h10000393; // 将陷阱入口 mtvec 设置为 0x100
     rom[1] = 32'h30539073;
-    rom[2] = 32'h00700293; // t0 = 7
-    rom[3] = 32'h00300313; // t1 = 3
-    rom[4] = 32'h40000437; // s0 = MMIO
-    rom[17] = 32'h0262c4b3; // div s1,t0,t1
-    rom[18] = 32'h00942023; // sw s1,0(s0)
+    rom[2] = 32'h00700293; // 将 t0 设置为 7
+    rom[3] = 32'h00300313; // 将 t1 设置为 3
+    rom[4] = 32'h40000437; // 将 MMIO 基地址写入 s0
+    rom[17] = 32'h0262c4b3; // 计算有符号除法：div s1,t0,t1
+    rom[18] = 32'h00942023; // 将除法结果写入 MMIO：sw s1,0(s0)
     rom[19] = 32'h0000006f;
-    rom[64] = 32'h341023f3; // csrr t2,mepc
+    rom[64] = 32'h341023f3; // 读取异常返回地址：csrr t2,mepc
     rom[65] = 32'h00438393;
     rom[66] = 32'h34139073;
     rom[67] = 32'h30200073;

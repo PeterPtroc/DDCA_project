@@ -33,7 +33,7 @@ module tb_vga_text;
       12:color=12'hf55;13:color=12'hf5f;14:color=12'hff5;15:color=12'hfff;
     endcase
   endfunction
-  // Independent raster counter: after reset the registered outputs lag 3 edges.
+  // 使用独立的光栅计数器：复位后，寄存器输出滞后三个时钟沿。
   task check_frames(input integer frame_total,input bit enabled,input bit show_cursor);
     integer x,y,index,fg,bg;
     reg glyph;
@@ -52,7 +52,7 @@ module tb_vga_text;
         if(enabled && hx[1]<640 && hy[1]<480) begin
           index=(hy[1]/16)*80+hx[1]/8;cell_value=reference_cells[index];
           glyph=reference_font[(cell_value[6:0]*8)+(hy[1]%16)/2][hx[1]%8];
-          // Blink toggles at each frame in this test; production uses bit 5.
+          // 本测试中闪烁状态逐帧翻转；实际实现使用帧计数器的第 5 位。
           if(show_cursor && index==2399 && hy[1]%16>=14 && ((checked/420000)%2==0)) glyph=1;
           fg=(cell_value>>8)&15;bg=(cell_value>>12)&15;
           expected=color(glyph ? fg : bg);
@@ -85,16 +85,16 @@ module tb_vga_text;
     register_access(1,0,0,4'b0010);register_access(0,0,0);if(rr!==7) $fatal(1,"Control strobe");
     register_access(0,4,0);if(rr!==2399) $fatal(1,"Cursor read");
     register_access(0,12,0);if(rr!==32'h001e0050) $fatal(1,"Geometry read");
-    // Begin independent checks at a fresh frame boundary (pipeline included).
+    // 从新一帧的边界开始独立检查，并计入流水线延迟。
     wait(dut.x==799 && dut.y==524);@(posedge pclk);@(negedge pclk);
-    // First checked frame is odd (cursor hidden), second is even (shown).
+    // 首个检查帧为奇数帧（隐藏光标），第二帧为偶数帧（显示光标）。
     checked=420000;
     check_frames(2,1,1);
     register_access(0,8,0);if(rr<3) $fatal(1,"Frame counter");
     register_access(1,0,0);
     wait(dut.x==799 && dut.y==524);@(posedge pclk);@(negedge pclk);
     check_frames(1,0,0);
-    // Reset a register transaction while in flight; both domains reset jointly.
+    // 在寄存器事务进行期间复位；同时复位两个时钟域。
     @(negedge clk);rv=1;rw=1;ra=0;rd=7;
     repeat(2) @(negedge clk);rst=1;prst=1;rv=0;
     repeat(8) @(negedge pclk);rst=0;prst=0;

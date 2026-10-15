@@ -208,8 +208,8 @@ module tb_ptrocos_video #(parameter PC_STYLE=0);
     uart_byte(3);wait(cancelled==1);settle();
     if(dut.audio.running || dut.audio.count) $fatal(1,"Video cancellation retained audio");
     text_restored();
-    // This cancellation interrupts a live SD read. The storage contract clears
-    // initialization and mount, so retry must first prove the guard and remount.
+    // 此次取消会中断正在进行的 SD 读取。按存储接口约定，需清除
+    // 初始化和挂载状态，因此重试前须先验证保护检查，再重新挂载。
     command("play /CLIP.PTV");wait(missing==2);settle();
     command("mount");wait(mounts==2);settle();
     pcm_count=0;command("play /CLIP.PTV");wait(finished==3);settle();

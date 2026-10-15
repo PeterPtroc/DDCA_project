@@ -40,7 +40,7 @@ module precise_irq_runner #(parameter PC_STYLE = 0) (output reg done = 0);
           if (da != 32'h40000004) $fatal(1, "unexpected read address");
           reads = reads + 1;
           dr <= device_value;
-          device_value <= 0; // Read-to-clear MMIO.
+          device_value <= 0; // 读取后清零的 MMIO 寄存器。
         end
       end
       if (retired && retire_pc >= 32'h40 && retire_pc <= 32'h4c) begin
@@ -63,18 +63,18 @@ module precise_irq_runner #(parameter PC_STYLE = 0) (output reg done = 0);
 
   initial begin
     for (i = 0; i < 128; i = i + 1) rom[i] = 32'h00000013;
-    rom[0] = 32'h10000293; // addi t0,zero,0x100
-    rom[1] = 32'h30529073; // csrw mtvec,t0
-    rom[2] = 32'h08800293; // enable MSI and MTI
+    rom[0] = 32'h10000293; // 将陷阱入口地址写入 t0：addi t0,zero,0x100
+    rom[1] = 32'h30529073; // 设置陷阱入口：csrw mtvec,t0
+    rom[2] = 32'h08800293; // 使能机器模式软件中断和定时器中断
     rom[3] = 32'h30429073;
-    rom[4] = 32'h30046073; // csrsi mstatus,8
+    rom[4] = 32'h30046073; // 设置机器模式全局中断使能位：csrsi mstatus,8
     rom[5] = 32'h400002b7;
     rom[6] = 32'h05500313;
-    rom[16] = 32'h0062a023; // sw t1,0(t0)
+    rom[16] = 32'h0062a023; // 将 t1 写入 t0 指向的地址：sw t1,0(t0)
     rom[17] = 32'h0062a023;
-    rom[18] = 32'h0042a483; // lw s1,4(t0)
-    rom[19] = 32'h0042a503; // lw s2,4(t0)
-    rom[20] = 32'h00a489b3; // add s3,s1,s2 (load dependency)
+    rom[18] = 32'h0042a483; // 从 t0 加 4 的地址加载到 s1：lw s1,4(t0)
+    rom[19] = 32'h0042a503; // 从 t0 加 4 的地址加载到 s2：lw s2,4(t0)
+    rom[20] = 32'h00a489b3; // 验证加载结果的数据依赖：add s3,s1,s2
     rom[21] = 32'h0000006f;
     rom[64] = 32'h30200073;
     for (irq_kind = 0; irq_kind < 2; irq_kind = irq_kind + 1)

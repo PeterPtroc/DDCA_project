@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 `default_nettype none
-// Independent card model driven only by board pins. 16 MiB backing, mode 0,
-// delayed MISO (12 ns after falling SCK), command/data CRC and address checks.
+// 仅由板级引脚驱动的独立存储卡模型，后备存储容量为 16 MiB，采用 SPI 模式 0，
+// MISO 在 SCK 下降沿后延迟 12 ns 更新，并检查命令、数据的 CRC 以及地址。
 module sd_spi_card_model #(
     parameter HIGH_CAPACITY=1, parameter VERSION2=1,
     parameter IMAGE="build/ptrocos_storage/fat16.hex"

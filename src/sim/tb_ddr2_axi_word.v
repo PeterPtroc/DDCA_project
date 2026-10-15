@@ -39,7 +39,7 @@ module tb_ddr2_axi_word;
       .axi_rresp(rresp), .axi_rlast(1'b1), .axi_rvalid(rvalid), .axi_rready(rready)
   );
   always #5 clk=~clk;
-  // Independent byte-addressed memory, independent AW/W stalls, delayed B/R.
+  // 独立的字节寻址存储器，AW/W 通道可独立停顿，B/R 通道带有延迟。
   always @(posedge clk) if (!rst) begin
     cycle<=cycle+1;
     if (awvalid && awready) begin

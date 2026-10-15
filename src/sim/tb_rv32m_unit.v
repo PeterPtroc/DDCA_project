@@ -26,7 +26,7 @@ module tb_rv32m_unit;
   initial begin
     repeat (3) @(negedge clk);
     rst = 0;
-    // Cancellation must clear busy/done and prevent a delayed ghost result.
+    // 取消操作必须清除 busy/done，并防止随后错误地产生已取消请求的结果。
     request(4, 32'h80000000, 7);
     repeat (7) @(negedge clk);
     rst = 1;
@@ -44,8 +44,8 @@ module tb_rv32m_unit;
       request(vector_op, vector_a, vector_b);
       cycles = 0;
       while (!done && cycles < 34) begin
-        // Changing operands and even asserting start while busy cannot alter
-        // the latched request or introduce a second completion.
+        // 忙碌期间，即使改变操作数或置位 start，也不得改变
+        // 已锁存的请求，或额外产生一次完成事件。
         a = ~vector_a; b = ~vector_b; op = ~vector_op;
         start = busy && cycles == 3;
         @(negedge clk);

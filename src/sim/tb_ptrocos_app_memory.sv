@@ -31,8 +31,8 @@ module tb_ptrocos_app_memory;
     if(!fault && !writing && rdata!==expected[address[13:2]]) $fatal(1,"App data read %x got %x",address,rdata);
     if(fault && rdata!==0) $fatal(1,"App rejected read leaked data");
     if(commits-before_commits!=(writing && !fault)) $fatal(1,"App duplicated/missing store");
-    // Read-first BRAM permits same-edge old instruction data. Keep fetch idle
-    // while updating the reference, then verify newly published data later.
+    // 读优先 BRAM 在同一时钟沿可返回旧的指令数据。更新参考数据时
+    // 保持取指空闲，随后再验证新写入的数据。
     if(writing && !fault) for(integer lane=0;lane<4;lane++) if(strobes[lane])
       expected[address[13:2]][lane*8+:8]=data[lane*8+:8];
     #1;valid=0;we=0;repeat(2) @(posedge clk);

@@ -69,7 +69,7 @@ module tb_ptrocos_mmio;
     read_word(32'h40007000, 5);
     send_byte(8'h45);
     read_word(32'h40001004, 3);
-    // Retired analyzer pages must be inert even with pending input events.
+    // 即使存在待处理的输入事件，已移除的分析仪页面也不得产生副作用。
     for (page = 0; page < 3; page = page + 1) begin
       addr = page == 0 ? 32'h40004000 : page == 1 ? 32'h40005000 : 32'h40009000;
       write_word(addr, 32'hffffffff);
@@ -87,7 +87,7 @@ module tb_ptrocos_mmio;
     read_word(32'h40001004, 3);
     read_word(32'h40001008, 32'h45);
     read_word(32'h40001004, 1);
-    // A request without valid cannot change GPIO or clear performance counters.
+    // valid 未置位的请求不得改变 GPIO 或清零性能计数器。
     @(negedge clk); addr = 32'h40000010; wdata = 0; we = 1;
     @(negedge clk); we = 0;
     read_word(32'h40000010, 32'h2a);

@@ -50,11 +50,11 @@ module tb_sd_spi;
     write_reg(0,8'ha5,1);if(!dut.fault || dut.busy) $fatal(1,"Unpowered rejection");
     cd_n=0;repeat(4) @(negedge clk);write_reg(8,9,1);
     if(power_off || !cs_n) $fatal(1,"Power/startup clocks selection");
-    exchange(8'hff,8'hff,125,0); // CS remains high during startup clocks.
+    exchange(8'hff,8'hff,125,0); // 启动时钟期间，CS 保持高电平。
     write_reg(8,3,1);if(cs_n) $fatal(1,"Select");
-    exchange(8'h96,8'h69,125,1); // Divider changes apply to the next byte.
+    exchange(8'h96,8'h69,125,1); // 分频系数的修改从下一个字节开始生效。
     for(i=0;i<256;i++) exchange(i[7:0],8'hff-i[7:0],4,0);
-    write_reg(12,0,3);read_equal(12,4); // Clamp prevents sampling too early.
+    write_reg(12,0,3);read_equal(12,4); // 限制分频系数的最小值，防止过早采样。
     write_reg(12,16'h012c,3);read_equal(12,300);
     write_reg(12,8'hf4,1);read_equal(12,500);
     exchange(8'ha5,8'h5a,500,0);

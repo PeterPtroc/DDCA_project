@@ -94,7 +94,7 @@ module tb_ptrocos_shell #(parameter PC_STYLE=0);
     @(negedge clk);uart_rx=0;repeat(DIVIDER) @(negedge clk);
     for(integer i=0;i<8;i++) begin uart_rx=value[i];repeat(DIVIDER) @(negedge clk);end
     uart_rx=1;repeat(DIVIDER) @(negedge clk);
-    // Service task is intentionally paced at the real 1 kHz tick frequency.
+    // 服务任务有意按实际的 1 kHz 系统节拍频率运行。
     repeat(4000) @(negedge clk);
   endtask
   task uart_text(input string value);
@@ -116,7 +116,7 @@ module tb_ptrocos_shell #(parameter PC_STYLE=0);
     uart_text("echo UART-OK\n");wait(echo_ok);
     uart_text("echo ac\033[Db\n");wait(edit_ok);
     uart_text("sleep 200\n");wait(sleeping);
-    // VGA shell operates while the UART shell sleeps; input never goes to UART.
+    // UART 终端休眠时，VGA 终端仍可运行；输入不得被转发到 UART 终端。
     scan(8'h24);scan(8'h21);scan(8'h33);scan(8'h44);scan(8'h29);
     scan(8'h12);scan(8'h2a);scan(8'h34);scan(8'h1c);shift_up();scan(8'h4e);
     scan(8'h12);scan(8'h44);scan(8'h42);shift_up();scan(8'h5a);

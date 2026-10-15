@@ -198,7 +198,7 @@ module tb_vga_ddr_framebuffer #(parameter FULL=0,MONO=0);
         FULL,checked_pixels,cpu_reads,bursts,reads,dut.swaps,saved_underflows,saved_errors,black_lines,transactions);
     $finish;
   end
-  // Continuous CPU reads contend with video, with independent R-channel pauses.
+  // CPU 连续读取与视频访问竞争，R 通道另有独立的暂停控制。
   integer cpu_cycle=0;reg outstanding=0;
   initial begin
     wait(!rst);

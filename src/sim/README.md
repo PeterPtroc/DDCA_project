@@ -1,6 +1,6 @@
 # 仿真验证
 
-想直观看到流水线指令推进、前递、停顿和冲刷，使用 [Vivado 流水线演示](../../docs/pipeline-demo.md)：在空 Vivado 窗口执行 `source scripts/create_pipeline_demo.tcl`。内置短程序，无需固件构建，自动生成按五类功能分组的波形（当前 MEM 实际分为两拍）。
+想直观看到流水线指令推进、前递、停顿和冲刷，使用 [Vivado 流水线演示](../../docs/pipeline-demo.md)：通过根目录 `open_vivado_gui.bat` 打开主工程，在 Simulation Sources 中选择 `sim_pipeline`（数组求和）或 `sim_pipeline_crc`（CRC 校验），运行行为仿真即可。旧工程可执行 `source -encoding utf-8 src/sim/pipeline/add_to_project.tcl` 补充登记；空 Vivado 窗口仍可用 `source scripts/create_pipeline_demo.tcl` 打开独立兼容工程。演示内置程序和数据，波形按功能分组，当前 MEM 实际分为两拍。
 
 在仓库根目录运行 `.\scripts\test_ptrocos.ps1` 重建全部九种固件并运行 PtrocOS 本地回归，日志保存到 `build/ptrocos-validation/cleanup/`。需要 RISC-V 工具链、Python 和 Vivado XSim；缺少 MIG 引脚模型时自动调用 `scripts/create_ddr2_ip.tcl` 生成。中途修复后可用 `-ResumeFrom <测试脚本名>` 跳过已完成的构建和检查，接着运行该项及后续测试；恢复运行单独报告，不代表之前跳过的项通过。
 

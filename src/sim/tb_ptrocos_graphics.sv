@@ -151,7 +151,7 @@ module tb_ptrocos_graphics #(parameter PC_STYLE=0);
     @(negedge clk);uart_rx=0;repeat(DIVIDER) @(negedge clk);
     for(integer i=0;i<8;i++) begin uart_rx=value[i];repeat(DIVIDER) @(negedge clk);end
     uart_rx=1;repeat(DIVIDER) @(negedge clk);
-    // Service task is intentionally paced at the real 1 kHz tick frequency.
+    // 服务任务有意按实际的 1 kHz 系统节拍频率运行。
     repeat(4000) @(negedge clk);
   endtask
   task uart_text(input string value);
@@ -178,7 +178,7 @@ module tb_ptrocos_graphics #(parameter PC_STYLE=0);
     command("gfx info");wait(info_count==1);repeat(20000) @(negedge clk);
     if(status_report || swaps_report || errors_report || under_report) $fatal(1,"Initial graphics state");
     command("gfx pattern 0");wait(drawing==1);
-    // The other TTY waits for the same graphics mutex, then cancels that wait.
+    // 另一个 TTY 等待同一个图形互斥锁，随后取消该等待。
     scan(8'h34);scan(8'h2b);scan(8'h22);scan(8'h29);scan(8'h44);scan(8'h2b);scan(8'h2b);scan(8'h5a);
     repeat(200000) @(negedge clk);scan(8'h14);scan(8'h21);scan(8'hf0);scan(8'h14);
     wait(displayed==1);frames(3);repeat(20000) @(negedge clk);

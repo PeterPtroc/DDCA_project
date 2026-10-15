@@ -32,7 +32,7 @@ module cdc_memory_runner(output reg done=0);
   end
   initial begin
     repeat(4) @(negedge sc); rst=0;
-    // Cancel a mailbox only by jointly resetting both domains.
+    // 只有同时复位两个时钟域，才能取消邮箱中的事务。
     sv=1; sa=32'h80000000; sd=123;
     wait(tv); @(negedge sc); rst=1; sv=0;
     repeat(4) @(negedge sc); rst=0;
@@ -169,7 +169,7 @@ module dma_memory_runner(output reg done=0);
     for(i=0;i<512;i=i+1) memory[i]=32'h12340000+i;
     repeat(4) @(negedge clk);rst=0;
     configure(32'h80000000,32'h80000100,8);write_reg(12,1);
-    // Reconfiguration and a repeated start must not replace the active job.
+    // 重新配置和重复启动不得替换正在执行的任务。
     configure(32'h80000200,32'h80000300,2);write_reg(12,1);
     finish_job(0,8);
     for(i=0;i<8;i=i+1) if(memory[64+i]!==memory[i]) $fatal(1,"DMA copied wrong data");

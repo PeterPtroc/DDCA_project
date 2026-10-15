@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 `default_nettype none
-// Physical pin simulation using the generated MIG simulation RTL and its DDR2
-// model. FAST calibration is a simulation convenience, not board validation.
+// 使用生成的 MIG 仿真 RTL 及其 DDR2 模型进行物理引脚仿真。
+// FAST 校准仅用于加快仿真，不能替代板级验证。
 module tb_ptrocos_mig;
   reg clk=0,reset_n=0;
   wire [12:0] addr;
@@ -23,8 +23,8 @@ module tb_ptrocos_mig;
       .ddr2_ck_p(ck_p),.ddr2_ck_n(ck_n),.ddr2_cke(cke),.ddr2_cs_n(cs_n),.ddr2_odt(odt),
       .ddr2_dm(dm),.ddr2_dq(dq),.ddr2_dqs_p(dqs_p),.ddr2_dqs_n(dqs_n)
   );
-  // 1024 fully tagged bursts cover this diagnostic and calibration traffic.
-  // The vendor default scans 32768 entries per access, making XSim much slower.
+  // 1024 个带完整地址标记的突发存储项足以覆盖本诊断程序和校准访问。
+  // 厂商默认模型每次访问扫描 32768 个存储项，会显著降低 XSim 的运行速度。
   ddr2_model #(.MEM_BITS(10),.DEBUG(0)) dram (
       .ck(ck_p),.ck_n(ck_n),.cke(cke),.cs_n(cs_n),.ras_n(ras_n),.cas_n(cas_n),.we_n(we_n),
       .dm_rdqs(dm),.ba(ba),.addr(addr),.dq(dq),.dqs(dqs_p),.dqs_n(dqs_n),.rdqs_n(),.odt(odt)
@@ -73,9 +73,9 @@ module tb_ptrocos_mig;
       $fatal(1,"MIG acceptance coverage CRC=%0d load=%0d store=%0d timer=%0d",crc_lines,load_faults,store_faults,timer_irqs);
     $display("PTROCOS MIG PIN SIM PASS cycles=%0d timer=%0d CRC=f364",cycles,timer_irqs);
 `else
-    // The diagnostic reaches the deliberate faults only after it has verified
-    // all DDR address bits, the last word, and byte/halfword access semantics.
-    // Full software/DMA acceptance runs in the sparse SoC test and on hardware.
+    // 诊断程序先验证全部 DDR 地址位、最后一个字及字节和半字访问语义，
+    // 验证完成后才执行有意触发错误的访问。
+    // 完整的软件和 DMA 验收在使用稀疏存储器的 SoC 测试及硬件上执行。
     wait(load_faults==1 && store_faults==1);
     repeat(10) @(posedge dut.cpu_clk);
     if(dut.soc.firmware_result[31:20]==12'hbad) $fatal(1,"MIG smoke firmware failure");

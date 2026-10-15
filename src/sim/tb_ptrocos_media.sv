@@ -178,16 +178,16 @@ module tb_ptrocos_media #(parameter PC_STYLE=0);
     before_writes=write_count;command("bmp /TOP.BMP");wait(bmp_started==2);
     wait(write_count>=before_writes+640);uart_byte(3);wait(cancelled==1);settle();
     if(dut.graphics.swaps!=1 || dut.graphics.active_base!=32'h81100000) $fatal(1,"Cancelled BMP changed front");
-    // Cancellation during drawing keeps the volume mounted and immediately retryable.
+    // 绘制期间取消操作后，卷应保持挂载，并可立即重试。
     command("bmp /TOP.BMP");wait(displayed==2);frames(2);settle();
     if(dut.graphics.swaps!=2 || dut.graphics.active_base!=32'h81000000) $fatal(1,"Top-down BMP flip");
     pcm_kind=1;pcm_count=0;command("wav /SOUND.WAV");wait(wav_started==3);
-    // Current stream, not the previous file's retained completion counter.
+    // 检查当前数据流，避免误用上一个文件保留的完成计数。
     wait(dut.audio.running && dut.audio.draining && dut.audio.played>=32);
     uart_byte(3);wait(cancelled==2);settle();
     if(dut.audio.running || dut.audio.count || wav_done!=2) $fatal(1,"Cancelled WAV retained audio");
     if(PC_STYLE==0) begin
-      // Remove a card during active audio; queued output must stop on the I/O error.
+      // 在音频播放期间移除存储卡；发生 I/O 错误时，必须停止队列中的音频输出。
       pcm_count=0;command("wav /SOUND.WAV");wait(wav_started==4);
       wait(dut.audio.running && dut.audio.played>=32 && !dut.audio.draining);attached=0;
       wait(io_errors==1);settle();

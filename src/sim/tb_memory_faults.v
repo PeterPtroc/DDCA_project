@@ -50,13 +50,13 @@ module memory_fault_runner #(parameter PC_STYLE = 0) (output reg done=0);
   initial begin
     for(i=0;i<128;i=i+1) rom[i]=32'h00000013;
     rom[0]=32'h10000393;
-    rom[1]=32'h30539073; // mtvec
-    rom[2]=32'h800002b7; // t0=DDR
+    rom[1]=32'h30539073; // 设置陷阱入口寄存器 mtvec
+    rom[2]=32'h800002b7; // 将 DDR 基地址写入 t0
     rom[3]=32'h05500313;
-    rom[16]=32'h0002a483; // failed lw s1,0(t0)
-    rom[17]=32'h0062a223; // failed sw t1,4(t0)
-    rom[18]=32'h0082a903; // successful lw s2,8(t0)
-    rom[19]=32'h0122a623; // successful sw s2,12(t0)
+    rom[16]=32'h0002a483; // 执行预期失败的字加载：lw s1,0(t0)
+    rom[17]=32'h0062a223; // 执行预期失败的字存储：sw t1,4(t0)
+    rom[18]=32'h0082a903; // 执行预期成功的字加载：lw s2,8(t0)
+    rom[19]=32'h0122a623; // 执行预期成功的字存储：sw s2,12(t0)
     rom[20]=32'h0000006f;
     rom[64]=32'h341023f3;
     rom[65]=32'h00438393;

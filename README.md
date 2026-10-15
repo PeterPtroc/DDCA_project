@@ -29,6 +29,8 @@ Nexys A7-100T 上基于自研 RV32IM + Zicsr CPU、FreeRTOS、128 MiB DDR2、VGA
 
 ## 验证与文档
 
+主工程已包含课设 CPU 仿真：在 **Simulation Sources** 中选择 `sim_pipeline`（数组求和）或 `sim_pipeline_crc`（CRC 校验），点击 **Run Behavioral Simulation**。波形和操作步骤见 [流水线演示](docs/pipeline-demo.md)。
+
 ```powershell
 .\scripts\test.ps1
 .\scripts\test_ptrocos.ps1

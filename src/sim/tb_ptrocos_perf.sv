@@ -52,7 +52,7 @@ module tb_ptrocos_perf #(parameter PC_STYLE=0);
       .bresp(bresp),.rresp(rresp),.rlast(rlast),.rdata(rdata),.write_count(write_count),.read_count(read_count)
   );
   always #5 clk=~clk;
-  // Incommensurate clock periods exercise all relative phases of the mailbox.
+  // 使用周期互不整除的时钟，覆盖邮箱跨时钟域通信的各种相对相位。
   always #6.1535 ui_clk=~ui_clk;
 
   integer phase=-1,trace_file,metrics_file,seen=0;

@@ -31,7 +31,7 @@ module tb_ps2_keyboard;
   initial begin
     repeat(10) @(negedge clk);rst=0;
     read_check(0,0);read_check(4,0);
-    // Filter rejects pulses shorter than eight local cycles on either input.
+    // 滤波器应滤除任一输入端上持续时间不足八个本地时钟周期的脉冲。
     pc=0;pd=0;repeat(2) @(negedge clk);pc=1;pd=1;repeat(30) @(negedge clk);
     read_check(0,0);
     for(integer i=0;i<256;i++) begin
@@ -41,12 +41,12 @@ module tb_ps2_keyboard;
     read_check(8,256);
     read_check(28,2816);
     packet_send(8'h1c,1);packet_send(8'h32,0,1);
-    bit_send(1); // bad start
+    bit_send(1); // 错误的起始位
     read_check(0,4);read_check(12,3);
     bit_send(0);bit_send(1);repeat(2100) @(negedge clk);
     read_check(0,12);read_check(16,1);
-    packet_send(8'h5a);read_check(4,8'h5a); // recovery after truncated frame
-    command(3,4'b0010);read_check(12,3); // wrong byte enable cannot clear
+    packet_send(8'h5a);read_check(4,8'h5a); // 验证截断帧之后的恢复
+    command(3,4'b0010);read_check(12,3); // 错误的字节使能不得触发清零
     command(3);read_check(0,0);read_check(8,0);read_check(12,0);read_check(16,0);
     for(integer i=0;i<32;i++) packet_send(i+32);
     read_check(0,32'h2001);
@@ -54,7 +54,7 @@ module tb_ps2_keyboard;
     for(integer i=0;i<32;i++) read_check(4,i+32);
     read_check(0,2);read_check(4,0);read_check(8,33);
     command(2);read_check(0,0);
-    // Full FIFO can accept a byte at the same edge that software pops one.
+    // 已满的 FIFO 可在软件弹出一个字节的同一时钟沿接收一个新字节。
     for(integer i=0;i<32;i++) packet_send(i);
     fork
       packet_send(8'hac);

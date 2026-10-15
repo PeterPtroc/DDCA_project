@@ -53,7 +53,7 @@ module tb_ptrocos_ddr2 #(parameter PC_STYLE=0);
       .bresp(bresp),.rresp(rresp),.rlast(rlast),.rdata(rdata),.write_count(write_count),.read_count(read_count)
   );
   always #5 clk=~clk;
-  // Incommensurate clock periods exercise all relative phases of the mailbox.
+  // 使用周期互不整除的时钟，覆盖邮箱跨时钟域通信的各种相对相位。
   always #6.1535 ui_clk=~ui_clk;
   always @(posedge clk) if(!rst) begin
     cycles<=cycles+1;
@@ -78,7 +78,7 @@ module tb_ptrocos_ddr2 #(parameter PC_STYLE=0);
       endcase
     end
   end
-  // Decode the actual serial pin, including its stop bit.
+  // 解码实际串口引脚上的数据，并检查停止位。
   initial forever begin
     @(negedge uart_tx);
     if(!rst) begin

@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 `default_nettype none
-// Independent full-address tagged memory, with burst reads and single-beat writes.
-// Pattern mode supplies literal address-derived RGB565 for scanout unit tests.
+// 使用完整地址标记的独立存储器，支持突发读取和单拍写入。
+// 图案模式直接根据地址生成 RGB565 像素，用于显示扫描输出的单元测试。
 module axi_graphics_memory #(parameter CAPACITY=131072,INITIAL_PATTERN=0) (
     input wire clk,rst,stall_reads,
     input wire [2:0] fault_mode,

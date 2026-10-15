@@ -73,13 +73,13 @@ module rv32m_wait_irq_runner #(parameter PC_STYLE = 0) (output reg done = 0);
     rom[4] = 32'h30046073;
     rom[5] = 32'h400002b7;
     rom[6] = 32'h05500313;
-    rom[16] = 32'h0062a023; // sw t1,0(t0)
-    rom[17] = 32'h0042a483; // lw s1,4(t0), read-to-clear
-    rom[18] = 32'h0264c933; // div s2,s1,t1 = 1
-    rom[19] = 32'h026909b3; // mul s3,s2,t1 = 0x55
-    rom[20] = 32'h0132a023; // sw s3,0(t0), dependent on M
-    rom[21] = 32'h0042aa03; // lw s4,4(t0) = 0
-    rom[22] = 32'h01448ab3; // add s5,s1,s4 = 0x55
+    rom[16] = 32'h0062a023; // 将 t1 写入 t0 指向的地址：sw t1,0(t0)
+    rom[17] = 32'h0042a483; // 从读取后清零的寄存器加载：lw s1,4(t0)
+    rom[18] = 32'h0264c933; // 执行有符号除法，结果为 1：div s2,s1,t1
+    rom[19] = 32'h026909b3; // 执行乘法，结果为 0x55：mul s3,s2,t1
+    rom[20] = 32'h0132a023; // 存储依赖乘除法单元结果的数据：sw s3,0(t0)
+    rom[21] = 32'h0042aa03; // 再次加载已清零的寄存器，结果为 0：lw s4,4(t0)
+    rom[22] = 32'h01448ab3; // 执行加法，结果为 0x55：add s5,s1,s4
     rom[23] = 32'h0000006f;
     rom[64] = 32'h30200073;
     for (irq_kind = 0; irq_kind < 2; irq_kind = irq_kind + 1)

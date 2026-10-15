@@ -54,7 +54,7 @@ module tb_pcm_audio;
             for(integer i=0;i<16;i++) put(0,(i*997)&65535);
             put(0,123);if(!dut.overflow || dut.count!=16) $fatal(1,"Full FIFO overwrite");
             put(8,8);put(8,1);put(4,8000);if(!dut.fault) $fatal(1,"Live rate change accepted");put(8,8);
-            // Deliberate simultaneous full-FIFO read/write at a sample boundary.
+            // 有意在采样边界对已满的 FIFO 同时进行读写。
             for(integer i=16;i<128;i++) begin
                 @(negedge clk);
                 while(!dut.tick) @(negedge clk);

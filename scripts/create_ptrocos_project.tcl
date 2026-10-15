@@ -73,5 +73,7 @@ if {$project_folder eq "vivado"} {set published_bit [file join $out rv32_realtim
 ddca_configure_guard $project_file $ptrocos_firmware $published_bit \
     [file join $out ptrocos.runs impl_1 ${board_top}_placed.dcp] \
     [file join $script_dir optimize_ptrocos_rom.tcl]
+# 将课设 CPU 演示作为独立仿真集加入同一个板级工程。
+source -encoding utf-8 [file join $root src sim pipeline add_to_project.tcl]
 ddca_guard finish project $project_file $ptrocos_firmware
 puts "PTROCOS PROJECT CREATED: $out"
