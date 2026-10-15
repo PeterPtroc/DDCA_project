@@ -2,6 +2,11 @@
 build/*
 !build/.gitkeep
 
+# Root demo application build output
+/demo.elf
+/demo.map
+/demo.headers.txt
+
 # Downloaded machine-local toolchain and ZIP cache
 /tools/.local/
 
